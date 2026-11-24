@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.4.1.0")]
-[assembly: AssemblyFileVersion("1.4.1.0")]
+[assembly: AssemblyVersion("1.5.0.0")]
+[assembly: AssemblyFileVersion("1.5.0.0")]
 
 namespace NillyHub
 {
@@ -385,6 +385,18 @@ namespace NillyHub
                         g.DrawLine(p, cx - u * 0.38f, cy + u * 0.06f, cx + u * 0.38f, cy + u * 0.06f);
                         g.DrawLine(p, cx - u * 0.38f, cy + u * 0.44f, cx + u * 0.22f, cy + u * 0.44f);
                     }
+                    else if (appId == "nillyzip")
+                    {
+                        g.DrawRectangle(p, cx - u * 0.72f, cy - u * 0.88f, u * 1.44f, u * 1.76f);
+                        float tw = u * 0.30f, th = u * 0.14f;
+                        for (int z = 0; z < 4; z++)
+                        {
+                            float zy = cy - u * 0.62f + z * u * 0.25f;
+                            float zx = (z % 2 == 0) ? (cx - tw - 1f) : (cx + 1f);
+                            g.FillRectangle(br, zx, zy, tw, th);
+                        }
+                        g.DrawRectangle(p, cx - u * 0.22f, cy + u * 0.36f, u * 0.44f, u * 0.44f);
+                    }
                     else if (appId == "hub")
                     {
                         // Always-crisp 4-square NillyHub emblem (even when NillyHub.exe runs solo without .ico!)
@@ -496,7 +508,7 @@ namespace NillyHub
         {
             newEtag = etag;
             HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
-            req.UserAgent = "NillyHub/1.4 (https://nillygraphics.com/)";
+            req.UserAgent = "NillyHub/1.5 (https://nillygraphics.com/)";
             req.Accept = "application/vnd.github+json";
             req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
             req.Timeout = 12000;
@@ -605,6 +617,7 @@ namespace NillyHub
             return o.TryGetValue(key, out v) ? (v as string) : null;
         }
 
+        private static readonly object PrefixLock = new object();
         private static readonly Dictionary<string, string> PackagePrefixes = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             { "nillyview-pro", "NillyView-Pro" },
@@ -618,8 +631,57 @@ namespace NillyHub
             { "nillydisk-pro", "NillyDisk-Pro" },
             { "nilly-pc-manager-tools", "Nilly-PC-Manager-Tools" },
             { "nillyclip-pro", "NillyClip-Pro" },
+            { "nillyzip-pro", "NillyZip-Pro" },
             { "nillyhub", "NillyHub" }
         };
+
+        public static void RegisterDynamicPrefix(string repoName, string packagePrefix)
+        {
+            if (string.IsNullOrEmpty(repoName) || string.IsNullOrEmpty(packagePrefix)) return;
+            if (!Regex.IsMatch(repoName, @"^[a-z0-9\-]{3,40}$") || !Regex.IsMatch(packagePrefix, @"^[A-Za-z0-9\-]{3,40}$"))
+                return;
+            lock (PrefixLock) { PackagePrefixes[repoName] = packagePrefix; }
+        }
+
+        public static string FetchLiveCatalogJson(string suiteRoot, bool allowConditional)
+        {
+            string url = "https://raw.githubusercontent.com/" + OWNER + "/nillyhub/main/catalog.json";
+            string cacheFile = string.IsNullOrEmpty(suiteRoot) ? null : Path.Combine(suiteRoot, ".nillyhub_catalog.json");
+            string etagFile = string.IsNullOrEmpty(suiteRoot) ? null : Path.Combine(suiteRoot, ".nillyhub_catalog.etag");
+            string prevEtag = null;
+            if (allowConditional && !string.IsNullOrEmpty(etagFile) && File.Exists(etagFile) && File.Exists(cacheFile))
+            {
+                try { prevEtag = File.ReadAllText(etagFile, Encoding.UTF8).Trim(); } catch { }
+            }
+            string newEtag;
+            string json = HttpGetConditional(url, prevEtag, out newEtag);
+            if (json == null && !string.IsNullOrEmpty(cacheFile) && File.Exists(cacheFile))
+                return File.ReadAllText(cacheFile, Encoding.UTF8);
+            if (!string.IsNullOrEmpty(json) && !string.IsNullOrEmpty(cacheFile))
+            {
+                try
+                {
+                    File.WriteAllText(cacheFile, json, Encoding.UTF8);
+                    if (!string.IsNullOrEmpty(newEtag)) File.WriteAllText(etagFile, newEtag, Encoding.UTF8);
+                }
+                catch { }
+            }
+            return json;
+        }
+
+        public static string LoadCachedCatalogJson(string suiteRoot)
+        {
+            try
+            {
+                string cacheFile = Path.Combine(suiteRoot, ".nillyhub_catalog.json");
+                if (File.Exists(cacheFile)) return File.ReadAllText(cacheFile, Encoding.UTF8);
+                // Also support bundled catalog.json right next to NillyHub.exe on first offline run
+                string localFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "catalog.json");
+                if (File.Exists(localFile)) return File.ReadAllText(localFile, Encoding.UTF8);
+            }
+            catch { }
+            return null;
+        }
 
         public static bool TryCheckHubSelfUpdate(DateTime hubRepoPushedUtc, out string newTag, out string zipUrl, out string sha256, out long sizeBytes)
         {
@@ -657,8 +719,11 @@ namespace NillyHub
         public static string ResolvePortableZip(string repoName, out string tag, out string digest, out long size)
         {
             string prefix;
-            if (!PackagePrefixes.TryGetValue(repoName, out prefix))
-                throw new InvalidOperationException("Το repository δεν ανήκει στη λίστα πακέτων Nilly.");
+            lock (PrefixLock)
+            {
+                if (!PackagePrefixes.TryGetValue(repoName, out prefix))
+                    throw new InvalidOperationException("Το repository δεν ανήκει στη λίστα πακέτων Nilly.");
+            }
             string json = HttpGet("https://api.github.com/repos/" + OWNER + "/" + repoName + "/releases/latest");
             return ReadPortableAsset(json, repoName, prefix, out tag, out digest, out size);
         }
@@ -712,7 +777,7 @@ namespace NillyHub
         public static void DownloadVerifiedZip(string url, string destination, string expectedHash, long expectedBytes)
         {
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-            request.UserAgent = "NillyHub/1.4 (https://nillygraphics.com/)";
+            request.UserAgent = "NillyHub/1.5 (https://nillygraphics.com/)";
             request.Timeout = 18000;
             request.ReadWriteTimeout = 18000;
             using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
@@ -764,6 +829,96 @@ namespace NillyHub
             list.Add(Make("pcmanager", "PC Manager", "System Suite", "All-in-One Studio & Windows Maintenance Suite", "PCManagerLite", "Launch_PCManagerLite.vbs", "", "PCManagerLite.ico", "nilly-pc-manager-tools", "https://nillygraphics.com/product/nilly-pc-manager-tools/el/", Color.FromArgb(102, 217, 239)));
             list.Add(Make("nillyclip", "NillyClip Pro", "Clipboard & Vault", "Ιστορικό προχείρου και τοπική κλειδοθήκη", "NillyClipPro", "NillyClipPro.exe", "NillyClipPro", "NillyClipPro.ico", "nillyclip-pro", "https://nillygraphics.com/product/nillyclip-pro/el/", Color.FromArgb(252, 150, 31)));
             return list;
+        }
+
+        // Dynamically merges new Nilly Suite apps from catalog.json (hosted in nillynp/nillyhub) with strict validation!
+        public static bool MergeCatalogJson(List<SuiteApp> apps, string json, string suiteRoot, ref string suiteSizeLabel)
+        {
+            if (apps == null || string.IsNullOrEmpty(json) || json.Length > 256 * 1024) return false;
+            bool addedAny = false;
+            try
+            {
+                Dictionary<string, object> root = MiniJson.Parse(json) as Dictionary<string, object>;
+                if (root == null) return false;
+                object szObj;
+                if (root.TryGetValue("suiteSizeLabel", out szObj))
+                {
+                    string lbl = szObj as string;
+                    if (!string.IsNullOrEmpty(lbl) && lbl.Length <= 24) suiteSizeLabel = lbl;
+                }
+                object appsObj;
+                if (!root.TryGetValue("apps", out appsObj)) return false;
+                List<object> list = appsObj as List<object>;
+                if (list == null) return false;
+
+                HashSet<string> existingRepos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < apps.Count; i++) existingRepos.Add(apps[i].RepoName);
+
+                for (int i = 0; i < list.Count; i++)
+                {
+                    Dictionary<string, object> o = list[i] as Dictionary<string, object>;
+                    if (o == null) continue;
+                    string id = JStr(o, "id");
+                    string name = JStr(o, "name");
+                    string tag = JStr(o, "tag") ?? "Nilly Tool";
+                    string desc = JStr(o, "desc") ?? name;
+                    string folder = JStr(o, "folder");
+                    string launch = JStr(o, "launch");
+                    string proc = JStr(o, "process") ?? "";
+                    string icon = JStr(o, "icon") ?? "";
+                    string repo = JStr(o, "repo");
+                    string prefix = JStr(o, "prefix");
+                    string site = JStr(o, "site") ?? "https://nillygraphics.com/";
+                    string accentHex = JStr(o, "accent") ?? "#FC961F";
+
+                    if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(name) || string.IsNullOrEmpty(folder) ||
+                        string.IsNullOrEmpty(launch) || string.IsNullOrEmpty(repo) || string.IsNullOrEmpty(prefix))
+                        continue;
+                    if (!Regex.IsMatch(id, @"^[a-z0-9\-]{2,32}$") ||
+                        !Regex.IsMatch(repo, @"^[a-z0-9\-]{3,40}$") ||
+                        !Regex.IsMatch(prefix, @"^[A-Za-z0-9\-]{3,40}$") ||
+                        !Regex.IsMatch(folder, @"^[A-Za-z0-9_]{3,40}$") ||
+                        !Regex.IsMatch(launch, @"^[A-Za-z0-9_\-\.]{3,48}$") ||
+                        launch.IndexOf("..", StringComparison.Ordinal) >= 0)
+                        continue;
+                    if (!site.StartsWith("https://nillygraphics.com/", StringComparison.OrdinalIgnoreCase) &&
+                        !site.StartsWith("https://github.com/nillynp/", StringComparison.OrdinalIgnoreCase))
+                        site = "https://nillygraphics.com/";
+
+                    GitHubClient.RegisterDynamicPrefix(repo, prefix);
+                    if (existingRepos.Contains(repo)) continue;
+
+                    SuiteApp app = Make(id, name, tag, desc, folder, launch, proc, icon, repo, site, ParseHexColor(accentHex, Color.FromArgb(102, 217, 239)));
+                    if (!string.IsNullOrEmpty(suiteRoot)) RefreshLocalState(app, suiteRoot);
+                    apps.Add(app);
+                    existingRepos.Add(repo);
+                    addedAny = true;
+                }
+            }
+            catch { }
+            return addedAny;
+        }
+
+        private static string JStr(Dictionary<string, object> o, string key)
+        {
+            object v;
+            return o.TryGetValue(key, out v) ? (v as string) : null;
+        }
+
+        private static Color ParseHexColor(string hex, Color fallback)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(hex) && hex.Length == 7 && hex[0] == '#')
+                {
+                    int r = int.Parse(hex.Substring(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                    int g = int.Parse(hex.Substring(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                    int b = int.Parse(hex.Substring(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                    return Color.FromArgb(r, g, b);
+                }
+            }
+            catch { }
+            return fallback;
         }
 
         private static SuiteApp Make(string id, string name, string tag, string desc, string folder, string launch, string proc, string ico, string repo, string site, Color accent)
@@ -1520,6 +1675,7 @@ namespace NillyHub
         private string _hubUpdTag, _hubUpdUrl, _hubUpdSha;
         private long _hubUpdSize;
         private bool _hubUpdating = false;
+        private string _suiteSizeLabel = "1,3 MB";
 
         public MainForm(bool smokeMode)
         {
@@ -1672,9 +1828,18 @@ namespace NillyHub
 
         private void CreateTilesOnce()
         {
+            EnsureTilesForAllApps();
+        }
+
+        private void EnsureTilesForAllApps()
+        {
+            HashSet<SuiteApp> have = new HashSet<SuiteApp>();
+            for (int i = 0; i < _tiles.Count; i++) have.Add(_tiles[i].App);
+            bool anyNew = false;
             _grid.SuspendLayout();
             for (int i = 0; i < _apps.Count; i++)
             {
+                if (have.Contains(_apps[i])) continue;
                 SquareAppTile tile = new SquareAppTile(_apps[i], _sharedTip);
                 tile.LaunchClicked += OnLaunchApp;
                 tile.UpdateClicked += OnInstallOrUpdateApp;
@@ -1690,14 +1855,29 @@ namespace NillyHub
                     try { Process.Start(new ProcessStartInfo(u) { UseShellExecute = true }); } catch { }
                 };
                 tile.UninstallClicked += OnUninstallApp;
+                tile.RefreshTile(_dark);
                 _tiles.Add(tile);
                 _grid.Controls.Add(tile);
+                anyNew = true;
             }
-            _grid.ResumeLayout(true);
+            _grid.ResumeLayout(anyNew);
+            UpdateSuiteBannerText();
+        }
+
+        private void UpdateSuiteBannerText()
+        {
+            if (_suiteBar == null) return;
+            _suiteBar.Text = string.Format("~6 GB βαριά προγράμματα → Μόνο {0} (99,98% πιο ελαφριά) · {1} δωρεάν εργαλεία (0€)", _suiteSizeLabel, _apps.Count);
         }
 
         private void LoadInstantCache()
         {
+            string catJson = GitHubClient.LoadCachedCatalogJson(_suiteRoot);
+            if (!string.IsNullOrEmpty(catJson))
+            {
+                SuiteCatalog.MergeCatalogJson(_apps, catJson, _suiteRoot, ref _suiteSizeLabel);
+                EnsureTilesForAllApps();
+            }
             List<GitHubRepoInfo> cached = GitHubClient.LoadCachedRepos(_suiteRoot);
             if (cached != null && cached.Count > 0)
                 ApplyRepoListToApps(cached, false);
@@ -1926,6 +2106,7 @@ namespace NillyHub
             Thread th = new Thread(delegate()
             {
                 List<GitHubRepoInfo> repos = null;
+                string liveCatalogJson = null;
                 string err = null;
                 string src = "live";
                 bool hasHubUpd = false;
@@ -1933,6 +2114,7 @@ namespace NillyHub
                 long hSize = 0;
                 try
                 {
+                    try { liveCatalogJson = GitHubClient.FetchLiveCatalogJson(_suiteRoot, !forceManual); } catch { }
                     repos = GitHubClient.FetchAllOwnerReposCached(_suiteRoot, !forceManual, out src);
                     if (repos != null)
                     {
@@ -1950,6 +2132,11 @@ namespace NillyHub
                     {
                         _checking = false;
                         _btnCheck.Enabled = true;
+                        if (!string.IsNullOrEmpty(liveCatalogJson))
+                        {
+                            SuiteCatalog.MergeCatalogJson(_apps, liveCatalogJson, _suiteRoot, ref _suiteSizeLabel);
+                            EnsureTilesForAllApps();
+                        }
                         if (err != null)
                         {
                             _lblStatus.Text = "Offline (" + err + ")";
