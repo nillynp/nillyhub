@@ -1,0 +1,118 @@
+name: Verify the public NillyHub download flow
+on:
+  push:
+    branches: ['qa/public-download-flow']
+    paths: ['.github/workflows/public-download-flow.yml']
+permissions:
+  contents: read
+jobs:
+  public-download:
+    runs-on: windows-2025
+    timeout-minutes: 9
+    steps:
+      - name: Install the public ZIP and use the full-suite button
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $page = Invoke-WebRequest -UseBasicParsing 'https://nillygraphics.com/product-category/software-tools/el/'
+          $hero = [regex]::Match($page.Content, '(?s)<section aria-labelledby="nillyhub-featured-title".*?</section>')
+          if (-not $hero.Success) { throw 'The public download card was not found' }
+          $match = [regex]::Match($hero.Value, 'href="(https://github\.com/nillynp/nillyhub/releases/download/v1\.1/NillyHub-v1\.1-Portable\.zip)"')
+          if (-not $match.Success) { throw 'The card does not link to the public v1.1 ZIP' }
+          $package = Join-Path $env:RUNNER_TEMP 'NillyHub-v1.1-Portable.zip'
+          Invoke-WebRequest -UseBasicParsing -Uri $match.Groups[1].Value -OutFile $package
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath $package).Hash -ne '669f4b7b54f390563ffd04e495e897e43816e5ed8168ebc1c652a8faa4f007fe') {
+            throw 'The public ZIP does not match the released SHA-256'
+          }
+          $dest = Join-Path $env:RUNNER_TEMP 'nillyhub-public-flow'
+          Expand-Archive -LiteralPath $package -DestinationPath $dest
+          $suiteRoot = Join-Path $env:LOCALAPPDATA 'NillySuite'
+          if (Test-Path -LiteralPath $suiteRoot) { throw 'Expected a fresh profile without Nilly Suite' }
+          Write-Host 'PUBLIC_CTA_AND_SHA256_VERIFIED=True'
+
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.Collections.Generic;
+          using System.Runtime.InteropServices;
+          using System.Text;
+          public static class HubUi {
+              private delegate bool EnumChild(IntPtr hwnd, IntPtr data);
+              [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumChild callback, IntPtr data);
+              [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string klass, string caption);
+              [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint process);
+              [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id);
+              [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+              [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint msg, IntPtr w, IntPtr l);
+              [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr SendMessageTimeout(IntPtr hwnd, uint msg, IntPtr w, StringBuilder l, uint flags, uint millis, out UIntPtr result);
+              public static string Caption(IntPtr hwnd) {
+                  StringBuilder buffer = new StringBuilder(512);
+                  UIntPtr result;
+                  SendMessageTimeout(hwnd, 13, (IntPtr)buffer.Capacity, buffer, 2, 300, out result);
+                  return buffer.ToString();
+              }
+              public static IntPtr[] Descendants(IntPtr parent) {
+                  List<IntPtr> result = new List<IntPtr>();
+                  EnumChildWindows(parent, (hwnd, data) => { result.Add(hwnd); return true; }, IntPtr.Zero);
+                  return result.ToArray();
+              }
+          }
+          '@
+          $installer = Start-Process -FilePath $env:ComSpec -ArgumentList '/d /c call Install_NillyHub.bat' -WorkingDirectory $dest -PassThru
+          function Wait-For($probe, [int]$seconds, [string]$message) {
+            $end = [DateTime]::UtcNow.AddSeconds($seconds)
+            do {
+              $found = & $probe
+              if ($found) { return $found }
+              Start-Sleep -Milliseconds 250
+            } while ([DateTime]::UtcNow -lt $end)
+            throw $message
+          }
+          $app = Wait-For {
+            Get-Process -Name NillyHub -ErrorAction SilentlyContinue |
+              Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $_.Path -eq (Join-Path $dest 'NillyHub.exe') } |
+              Select-Object -First 1
+          } 35 'Hub did not open after running the published BAT'
+          $main = $app.MainWindowHandle
+          $ready = Wait-For {
+            [HubUi]::Descendants($main) |
+              Where-Object { [HubUi]::Caption($_) -match 'github\.com/nillynp \(11 repos\)' } |
+              Select-Object -First 1
+          } 30 'The live GitHub sync did not discover all 11 tools'
+          Write-Host ([HubUi]::Caption($ready))
+          $button = Wait-For {
+            [HubUi]::Descendants($main) |
+              Where-Object { [HubUi]::Caption($_) -eq '↓ Όλη η Σουίτα' } |
+              Select-Object -First 1
+          } 10 'Could not find the full-suite button'
+          [void][HubUi]::SetForegroundWindow($main)
+          if (-not [HubUi]::PostMessage($button, 0xf5, [IntPtr]::Zero, [IntPtr]::Zero)) { throw 'Could not click the suite button' }
+          $dialog = Wait-For {
+            $handle = [HubUi]::FindWindow('#32770', 'Εγκατάσταση Όλης της Σουίτας — NillyHub')
+            if ($handle -ne [IntPtr]::Zero) {
+              [uint32]$windowProcess = 0
+              [void][HubUi]::GetWindowThreadProcessId($handle, [ref]$windowProcess)
+              if ($windowProcess -eq $app.Id) { $handle }
+            }
+          } 12 'The suite confirmation did not open'
+          [void][HubUi]::SetForegroundWindow($dialog)
+          $yes = [HubUi]::GetDlgItem($dialog, 6)
+          if ($yes -eq [IntPtr]::Zero -or -not [HubUi]::PostMessage($dialog, 0x111, [IntPtr]6, $yes)) { throw 'Could not confirm the suite installation' }
+
+          $finished = Wait-For {
+            [HubUi]::Descendants($main) |
+              Where-Object { [HubUi]::Caption($_) -match 'Ολοκληρώθηκε η Σουίτα \(\d+/\d+' } |
+              Select-Object -First 1
+          } 240 'The suite did not finish installing'
+          $status = [HubUi]::Caption($finished)
+          Write-Host $status
+          if ($status -notmatch '\(11/11 εργαλεία έτοιμα\)') { throw 'The application reported an incomplete installation' }
+          $expected = @(
+            'NillyViewPro\NillyViewPro.exe', 'NillyDocPro\NillyDocPro.exe', 'NillyNotePro\NillyNotePro.exe',
+            'NillyCodePro\NillyCodePro.exe', 'NillyCalcPro\NillyCalcPro.exe', 'NillyBatchPro\NillyBatchPro.exe',
+            'NillyMediaLite\NillyMediaLite.exe', 'NillyQuickSnap\NillyQuickSnap.exe', 'NillyDiskPro\NillyDiskPro.exe',
+            'PCManagerLite\Launch_PCManagerLite.vbs', 'NillyClipPro\NillyClipPro.exe'
+          )
+          foreach ($path in $expected) {
+            if (-not (Test-Path -LiteralPath (Join-Path $suiteRoot $path) -PathType Leaf)) { throw "Missing launcher: $path" }
+          }
+          Write-Host 'PUBLIC_DOWNLOAD_TO_SUITE_UI=11/11'
