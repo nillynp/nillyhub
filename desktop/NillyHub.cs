@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.2.0.0")]
-[assembly: AssemblyFileVersion("1.2.0.0")]
+[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyFileVersion("1.3.0.0")]
 
 namespace NillyHub
 {
@@ -385,6 +385,30 @@ namespace NillyHub
                         g.DrawLine(p, cx - u * 0.38f, cy + u * 0.06f, cx + u * 0.38f, cy + u * 0.06f);
                         g.DrawLine(p, cx - u * 0.38f, cy + u * 0.44f, cx + u * 0.22f, cy + u * 0.44f);
                     }
+                    else if (appId == "hub")
+                    {
+                        // Always-crisp 4-square NillyHub emblem (even when NillyHub.exe runs solo without .ico!)
+                        float gap = sz * 0.06f;
+                        float cell = (w - sz * 0.30f - gap) / 2f;
+                        float x0 = (sz - (cell * 2f + gap)) / 2f;
+                        float y0 = x0;
+                        float cr = Math.Max(2f, cell * 0.28f);
+                        Color[] cols = new Color[]
+                        {
+                            Color.FromArgb(252, 150, 31),
+                            Color.FromArgb(102, 217, 239),
+                            Color.FromArgb(249, 38, 114),
+                            Color.FromArgb(166, 226, 46)
+                        };
+                        for (int q = 0; q < 4; q++)
+                        {
+                            float qx = x0 + (q % 2) * (cell + gap);
+                            float qy = y0 + (q / 2) * (cell + gap);
+                            using (GraphicsPath qp = RoundRectF(qx, qy, cell, cell, cr))
+                            using (SolidBrush qb = new SolidBrush(cols[q]))
+                                g.FillPath(qb, qp);
+                        }
+                    }
                     else
                     {
                         string mono = title.StartsWith("Nilly") && title.Length > 5 ? title.Substring(5, 1).ToUpper() : title.Substring(0, 1).ToUpper();
@@ -472,7 +496,7 @@ namespace NillyHub
         {
             newEtag = etag;
             HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
-            req.UserAgent = "NillyHub/1.2 (https://nillygraphics.com/)";
+            req.UserAgent = "NillyHub/1.3 (https://nillygraphics.com/)";
             req.Accept = "application/vnd.github+json";
             req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
             req.Timeout = 12000;
@@ -654,7 +678,7 @@ namespace NillyHub
         public static void DownloadVerifiedZip(string url, string destination, string expectedHash, long expectedBytes)
         {
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-            request.UserAgent = "NillyHub/1.2 (https://nillygraphics.com/)";
+            request.UserAgent = "NillyHub/1.3 (https://nillygraphics.com/)";
             request.Timeout = 18000;
             request.ReadWriteTimeout = 18000;
             using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
@@ -814,12 +838,21 @@ namespace NillyHub
             {
                 byte[] raw = File.ReadAllBytes(lnkPath);
                 if (raw.Length < 64 || raw.Length > 32768) return null;
-                // Check ASCII & UTF-16LE embedded target paths inside standard Windows Shell Link (.lnk)
+                // Check ASCII + BOTH even (offset 0) & odd (offset 1) UTF-16LE alignments inside Windows .lnk binaries!
                 string ascii = Encoding.Default.GetString(raw);
                 string hit = MatchFilePath(ascii, expectedFileLower);
                 if (hit != null) return hit;
-                string utf16 = Encoding.Unicode.GetString(raw);
-                return MatchFilePath(utf16, expectedFileLower);
+                string utf16Even = Encoding.Unicode.GetString(raw, 0, raw.Length - (raw.Length % 2));
+                hit = MatchFilePath(utf16Even, expectedFileLower);
+                if (hit != null) return hit;
+                if (raw.Length > 3)
+                {
+                    int oddLen = (raw.Length - 1) - ((raw.Length - 1) % 2);
+                    string utf16Odd = Encoding.Unicode.GetString(raw, 1, oddLen);
+                    hit = MatchFilePath(utf16Odd, expectedFileLower);
+                    if (hit != null) return hit;
+                }
+                return null;
             }
             catch { return null; }
         }
@@ -1053,6 +1086,7 @@ namespace NillyHub
         public event Action<SuiteApp> UpdateClicked;
         public event Action<SuiteApp> FolderClicked;
         public event Action<SuiteApp> SiteClicked;
+        public event Action<SuiteApp> UninstallClicked;
 
         private bool _dark = true;
         private bool _tileHover = false;
@@ -1305,6 +1339,12 @@ namespace NillyHub
 
         protected override void OnMouseClick(MouseEventArgs e)
         {
+            if (e.Button == MouseButtons.Right)
+            {
+                ShowTileContextMenu(e.Location);
+                base.OnMouseClick(e);
+                return;
+            }
             if (e.Button != MouseButtons.Left) return;
             int bi = HitTestBtn(e.Location);
             if (bi == 1) { if (App.FoundOnGitHub && UpdateClicked != null) UpdateClicked(App); }
@@ -1316,6 +1356,44 @@ namespace NillyHub
                 else if (App.FoundOnGitHub && UpdateClicked != null) UpdateClicked(App);
             }
             base.OnMouseClick(e);
+        }
+
+        private void ShowTileContextMenu(Point loc)
+        {
+            ContextMenuStrip cms = new ContextMenuStrip();
+            ToolStripMenuItem miRun = new ToolStripMenuItem(App.IsInstalled ? ("▶  Άνοιγμα " + App.DisplayName) : ("↓  Εγκατάσταση " + App.DisplayName + " (0€)"));
+            miRun.Enabled = App.IsInstalled || App.FoundOnGitHub;
+            miRun.Click += delegate
+            {
+                if (App.IsInstalled) { if (LaunchClicked != null) LaunchClicked(App); }
+                else if (App.FoundOnGitHub && UpdateClicked != null) UpdateClicked(App);
+            };
+            cms.Items.Add(miRun);
+
+            ToolStripMenuItem miUpd = new ToolStripMenuItem(App.HasUpdate ? "↻  Ενημέρωση από GitHub (Νέα έκδοση!)" : "↻  Έλεγχος / Επανεγκατάσταση από GitHub");
+            miUpd.Enabled = App.FoundOnGitHub && !App.Busy;
+            miUpd.Click += delegate { if (UpdateClicked != null) UpdateClicked(App); };
+            cms.Items.Add(miUpd);
+
+            ToolStripMenuItem miDir = new ToolStripMenuItem("📁  Άνοιγμα τοπικού φακέλου");
+            miDir.Enabled = App.IsInstalled;
+            miDir.Click += delegate { if (FolderClicked != null) FolderClicked(App); };
+            cms.Items.Add(miDir);
+
+            ToolStripMenuItem miWeb = new ToolStripMenuItem("🌐  Σελίδα nillygraphics.com / GitHub");
+            miWeb.Click += delegate { if (SiteClicked != null) SiteClicked(App); };
+            cms.Items.Add(miWeb);
+
+            if (App.IsInstalled)
+            {
+                cms.Items.Add(new ToolStripSeparator());
+                ToolStripMenuItem miUn = new ToolStripMenuItem("✕  Απεγκατάσταση " + App.DisplayName + "...");
+                miUn.ForeColor = Color.FromArgb(200, 38, 60);
+                miUn.Click += delegate { if (UninstallClicked != null) UninstallClicked(App); };
+                cms.Items.Add(miUn);
+            }
+            cms.Closed += delegate { cms.Dispose(); };
+            cms.Show(this, loc);
         }
 
         protected override void Dispose(bool disposing)
@@ -1384,7 +1462,7 @@ namespace NillyHub
         private static readonly Font FontPill = new Font("Segoe UI", 8.3f, FontStyle.Bold);
         private static readonly Font FontInput = new Font("Segoe UI", 9f);
         private static readonly Font FontFooter = new Font("Segoe UI", 8.2f);
-        private static readonly Font FontBanner = new Font("Segoe UI", 8.5f, FontStyle.Regular);
+        private static readonly Font FontBanner = new Font("Segoe UI", 8.5f, FontStyle.Bold);
 
         private readonly string _suiteRoot;
         private readonly List<SuiteApp> _apps;
@@ -1470,15 +1548,16 @@ namespace NillyHub
 
         private void BuildUi()
         {
-            // Top Info Banner (docked at the very top: y = 0..28)
+            // Top Comparison Banner (docked at the very top: y = 0..28)
             _suiteBar = new Label
             {
                 Dock = DockStyle.Top, Height = 28, TextAlign = ContentAlignment.MiddleCenter,
                 Font = FontBanner, UseMnemonic = false,
-                Text = "Προεπιλογές Windows › Nilly Suite · 11 εργαλεία · 1,24 MiB ZIP · 0 € · MIT",
+                Text = "Αντικαθιστά ~6 GB βαριών εφαρμογών → Μόνο 1,24 MiB (99,98% πιο ελαφριά) · 11 εργαλεία · 0 € · 0 MB RAM κλειστή",
                 AccessibleName = "Σύγκριση σουίτας",
-                AccessibleDescription = "Συνολικό μέγεθος των 11 φορητών ZIP της Nilly Suite v1.2."
+                AccessibleDescription = "11 φορητά εργαλεία (1,24 MiB ZIP συνολικά — 99,98% πιο ελαφριά από ~6 GB αντίστοιχων εφαρμογών Windows & Adobe)."
             };
+            _sharedTip.SetToolTip(_suiteBar, "Σύγκριση: ~6 GB (Acrobat Pro, Bridge, Photos, Snipping Tool, Media Player, Notepad, Calc, Sublime, TreeSize) vs 1,24 MiB όλη η Nilly Suite (MIT · 0€ · 0 MB RAM στο παρασκήνιο)");
 
             // Main Header Bar (docked cleanly directly below _suiteBar: y = 28..82)
             _header = new Panel { Dock = DockStyle.Top, Height = 54, Padding = new Padding(14, 10, 14, 10) };
@@ -1491,16 +1570,16 @@ namespace NillyHub
 
             FlowLayoutPanel rightBar = new FlowLayoutPanel
             {
-                Dock = DockStyle.Right, Width = 804, FlowDirection = FlowDirection.RightToLeft,
+                Dock = DockStyle.Right, Width = 816, FlowDirection = FlowDirection.RightToLeft,
                 WrapContents = false, Padding = new Padding(0, 3, 0, 0)
             };
 
-            _btnTheme = MkPill("☀", 30, delegate { _dark = !_dark; ApplyTheme(); });
+            _btnTheme = MkPill("Light", 46, delegate { _dark = !_dark; ApplyTheme(); });
             _btnWinSwap = MkPill("⇄ Windows", 92, delegate { OpenWindowsSwitchWizard(); });
             _btnSuiteAll = MkPill("↓ Όλη η Σουίτα", 112, delegate { InstallOrUpdateFullSuite(); });
             _btnCheck = MkPill("↻ Sync", 62, delegate { CheckGitHubUpdatesAsync(true); });
 
-            _txtSearch = new TextBox { Width = 128, Height = 26, BorderStyle = BorderStyle.FixedSingle, Font = FontInput, Margin = new Padding(4, 2, 4, 0) };
+            _txtSearch = new TextBox { Width = 124, Height = 26, BorderStyle = BorderStyle.FixedSingle, Font = FontInput, Margin = new Padding(4, 2, 4, 0) };
             _txtSearch.TextChanged += delegate { ApplyFilters(); };
 
             _btnFUpd = MkPill("Updates", 82, delegate { _filterMode = "updates"; ApplyFilters(); StylePills(); });
@@ -1561,6 +1640,7 @@ namespace NillyHub
                                (!string.IsNullOrEmpty(ap.SiteUrl) ? ap.SiteUrl : ("https://github.com/" + GitHubClient.OWNER + "/" + ap.RepoName));
                     try { Process.Start(new ProcessStartInfo(u) { UseShellExecute = true }); } catch { }
                 };
+                tile.UninstallClicked += OnUninstallApp;
                 _tiles.Add(tile);
                 _grid.Controls.Add(tile);
             }
@@ -1610,7 +1690,7 @@ namespace NillyHub
             _lblCredit.ForeColor = orange;
             _txtSearch.BackColor = _dark ? Color.FromArgb(22, 24, 28) : Color.White;
             _txtSearch.ForeColor = fgMain;
-            _btnTheme.Text = _dark ? "☀" : "🌙";
+            _btnTheme.Text = _dark ? "Light" : "Dark";
 
             foreach (Button b in new Button[] { _btnCheck, _btnWinSwap, _btnTheme })
             { b.BackColor = btnBg; b.ForeColor = fgMain; b.FlatAppearance.BorderColor = border; }
@@ -1715,6 +1795,59 @@ namespace NillyHub
         {
             using (WindowsSwitchDialog dialog = new WindowsSwitchDialog(_dark))
                 dialog.ShowDialog(this);
+        }
+
+        private void OnUninstallApp(SuiteApp app)
+        {
+            if (!app.IsInstalled || app.Busy || string.IsNullOrEmpty(app.LocalDir)) return;
+            if (Directory.Exists(Path.Combine(app.LocalDir, ".git")))
+            {
+                MessageBox.Show(this,
+                    "Το " + app.DisplayName + " βρίσκεται σε φάκελο Git/ανάπτυξης (" + app.LocalDir + ") και δεν διαγράφεται αυτόματα για προστασία του κώδικά σου.",
+                    "NillyHub", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            DialogResult dr = MessageBox.Show(this,
+                "Απεγκατάσταση του " + app.DisplayName + ";\r\nΦάκελος: " + app.LocalDir,
+                "Απεγκατάσταση — NillyHub", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (dr != DialogResult.Yes) return;
+
+            try
+            {
+                if (!string.IsNullOrEmpty(app.ProcessName))
+                {
+                    Process[] ps = Process.GetProcessesByName(app.ProcessName);
+                    int cnt = ps.Length;
+                    for (int i = 0; i < cnt; i++) ps[i].Dispose();
+                    if (cnt > 0)
+                    {
+                        MessageBox.Show(this, "Κλείσε πρώτα το " + app.DisplayName + " πριν την απεγκατάσταση.", "NillyHub", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                }
+                string unPs1 = Path.Combine(app.LocalDir, "Uninstall_" + Path.GetFileNameWithoutExtension(app.LaunchFile) + ".ps1");
+                if (File.Exists(unPs1))
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -File \"" + unPs1 + "\" -Silent");
+                    psi.WorkingDirectory = app.LocalDir;
+                    psi.UseShellExecute = false;
+                    psi.CreateNoWindow = true;
+                    using (Process p = Process.Start(psi)) { if (p != null) p.WaitForExit(30000); }
+                }
+                string suiteRootFull = Path.GetFullPath(_suiteRoot).TrimEnd('\\') + "\\";
+                string appDirFull = Path.GetFullPath(app.LocalDir).TrimEnd('\\') + "\\";
+                if (appDirFull.StartsWith(suiteRootFull, StringComparison.OrdinalIgnoreCase) && Directory.Exists(app.LocalDir))
+                {
+                    Directory.Delete(app.LocalDir, true);
+                }
+                SuiteCatalog.RefreshLocalState(app, _suiteRoot);
+                ApplyFilters();
+                _lblStatus.Text = "Απεγκαταστάθηκε το " + app.DisplayName + ".";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Αδυναμία απεγκατάστασης " + app.DisplayName + ":\r\n" + ex.Message, "NillyHub", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private void OnLaunchApp(SuiteApp app)
