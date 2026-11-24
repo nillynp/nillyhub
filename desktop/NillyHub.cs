@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.1.0")]
-[assembly: AssemblyFileVersion("1.6.1.0")]
+[assembly: AssemblyVersion("1.6.2.0")]
+[assembly: AssemblyFileVersion("1.6.2.0")]
 
 namespace NillyHub
 {
@@ -1601,16 +1601,12 @@ namespace NillyHub
             if (bi != _lastTipZone && _tip != null)
             {
                 _lastTipZone = bi;
-                if (bi == 0) _tip.SetToolTip(this, App.IsInstalled ? ("Άνοιγμα " + App.DisplayName) : ("Εγκατάσταση " + App.DisplayName + " (0€)"));
-                else if (bi == 1) _tip.SetToolTip(this, App.HasUpdate ? "Διαθέσιμη ενημέρωση από GitHub — κλικ για Update" : "Έλεγχος / Ενημέρωση από GitHub");
-                else if (bi == 2) _tip.SetToolTip(this, App.IsInstalled ? ("Άνοιγμα φακέλου: " + App.LocalDir) : "Άνοιγμα τοπικού φακέλου");
-                else if (bi == 3) _tip.SetToolTip(this, "Άνοιγμα στο nillygraphics.com / GitHub");
-                else if (bi == 4) _tip.SetToolTip(this, "ⓘ Σύγκριση με Windows Default (RAM, Δίσκος, CPU & GPU)");
-                else
-                {
-                    string sz = App.IsInstalled ? (Math.Max(1, App.LocalExeBytes / 1024) + " KB · " + App.LocalDir) : "Μη εγκατεστημένο";
-                    _tip.SetToolTip(this, App.DisplayName + " — " + App.Description + " (" + sz + ")");
-                }
+                if (bi == 0) _tip.SetToolTip(this, App.IsInstalled ? "Άνοιγμα" : "Εγκατάσταση (0€)");
+                else if (bi == 1) _tip.SetToolTip(this, App.HasUpdate ? "Ενημέρωση" : "Έλεγχος Update");
+                else if (bi == 2) _tip.SetToolTip(this, "Φάκελος");
+                else if (bi == 3) _tip.SetToolTip(this, "Ιστοσελίδα");
+                else if (bi == 4) _tip.SetToolTip(this, "Σύγκριση Windows");
+                else _tip.SetToolTip(this, App.IsInstalled ? "Κλικ για άνοιγμα" : "Κλικ για εγκατάσταση");
             }
             base.OnMouseMove(e);
         }
@@ -1981,7 +1977,7 @@ namespace NillyHub
                 AccessibleName = "Σύγκριση σουίτας",
                 AccessibleDescription = "Δωρεάν εργαλεία Windows (99,98% ελαφρύτερα από ~6 GB αντίστοιχων εφαρμογών)."
             };
-            _sharedTip.SetToolTip(_suiteBar, "Σύγκριση: ~6 GB (Acrobat Pro, Bridge, Photos, Snipping Tool, Media Player, Notepad, Calc, Sublime, TreeSize) vs 1,24 MiB όλη η Nilly Suite (MIT · 0€ · 0 MB RAM στο παρασκήνιο)");
+            _sharedTip.SetToolTip(_suiteBar, "~6 GB → 1,35 MB · 0€ MIT");
 
             // Main Header Bar (docked cleanly directly below _suiteBar: y = 28..82)
             _header = new Panel { Dock = DockStyle.Top, Height = 54, Padding = new Padding(14, 10, 14, 10) };
@@ -2010,11 +2006,11 @@ namespace NillyHub
             _btnFInst = MkPill("Τοπικά", 86, delegate { _filterMode = "installed"; ApplyFilters(); StylePills(); });
             _btnFAll = MkPill("Όλα", 74, delegate { _filterMode = "all"; ApplyFilters(); StylePills(); });
 
-            _sharedTip.SetToolTip(_btnCheck, "Έλεγχος ενημερώσεων από github.com/nillynp (ETag cache)");
-            _sharedTip.SetToolTip(_btnSuiteAll, "Λήψη & Ενημέρωση όλων των εργαλείων της Σουίτας μαζί (1 κλικ)");
-            _sharedTip.SetToolTip(_btnWinSwap, "Ασφαλής αντικατάσταση εφαρμογών Windows (Προεπιλογές & Πρόχειρο)");
-            _sharedTip.SetToolTip(_btnTheme, "Εναλλαγή Dark / Light");
-            _sharedTip.SetToolTip(_txtSearch, "Αναζήτηση εργαλείου (Ctrl+F)...");
+            _sharedTip.SetToolTip(_btnCheck, "Συγχρονισμός GitHub");
+            _sharedTip.SetToolTip(_btnSuiteAll, "Όλη η Σουίτα");
+            _sharedTip.SetToolTip(_btnWinSwap, "Ρυθμίσεις Windows");
+            _sharedTip.SetToolTip(_btnTheme, "Dark / Light");
+            _sharedTip.SetToolTip(_txtSearch, "Αναζήτηση (Ctrl+F)");
 
             rightBar.Controls.AddRange(new Control[] { _btnTheme, _btnWinSwap, _btnSuiteAll, _btnCheck, _txtSearch, _btnFUpd, _btnFInst, _btnFAll });
             _header.Controls.Add(rightBar);
