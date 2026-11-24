@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 9
     steps:
       - name: Install the public ZIP and use the full-suite button
-        shell: powershell
+        shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $page = Invoke-WebRequest -UseBasicParsing 'https://nillygraphics.com/product-category/software-tools/el/'
