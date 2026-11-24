@@ -907,6 +907,18 @@ namespace NillyHub
             return list;
         }
 
+        public static List<SuiteApp> BuildBundledCatalog()
+        {
+            List<SuiteApp> apps = BuildDefaultCatalog();
+            string catalogFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "catalog.json");
+            if (File.Exists(catalogFile))
+            {
+                string suiteSizeLabel = null;
+                MergeCatalogJson(apps, File.ReadAllText(catalogFile, Encoding.UTF8), DetectSuiteRoot(), ref suiteSizeLabel);
+            }
+            return apps;
+        }
+
         // Dynamically merges new Nilly Suite apps from catalog.json (hosted in nillynp/nillyhub) with strict validation!
         public static bool MergeCatalogJson(List<SuiteApp> apps, string json, string suiteRoot, ref string suiteSizeLabel)
         {
@@ -2741,9 +2753,7 @@ namespace NillyHub
             try
             {
                 string root = SuiteCatalog.DetectSuiteRoot();
-                List<SuiteApp> apps = SuiteCatalog.BuildDefaultCatalog();
-                string suiteSizeLabel = null;
-                SuiteCatalog.MergeCatalogJson(apps, GitHubClient.LoadCachedCatalogJson(root), root, ref suiteSizeLabel);
+                List<SuiteApp> apps = SuiteCatalog.BuildBundledCatalog();
                 int localFound = 0, crispIcons = 0;
                 for (int i = 0; i < apps.Count; i++)
                 {

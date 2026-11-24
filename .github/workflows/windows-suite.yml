@@ -30,20 +30,16 @@ jobs:
           $exe = (Resolve-Path .\NillyHub.exe).Path
           $assembly = [Reflection.Assembly]::LoadFrom($exe)
           $catalog = $assembly.GetType('NillyHub.SuiteCatalog', $true)
-          $apps = $catalog.GetMethod('BuildDefaultCatalog').Invoke($null, $null)
           $root = $catalog.GetMethod('DetectSuiteRoot').Invoke($null, $null)
-          $catalogJson = Get-Content -LiteralPath .\catalog.json -Raw -Encoding UTF8
-          $catalogData = $catalogJson | ConvertFrom-Json
+          $catalogData = Get-Content -LiteralPath .\catalog.json -Raw -Encoding UTF8 | ConvertFrom-Json
           $expectedRepos = @($catalogData.apps | ForEach-Object { [string]$_.repo })
-          $mergeArgs = [object[]]::new(4)
-          $mergeArgs[0] = $apps.PSObject.BaseObject
-          $mergeArgs[1] = $catalogJson
-          $mergeArgs[2] = $root
-          $mergeArgs[3] = [string]$catalogData.suiteSizeLabel
           $env:NILLYHUB_CI_RELEASES_TOKEN = $releaseToken
           $releaseToken = $null
           try {
-            [void]$catalog.GetMethod('MergeCatalogJson').Invoke($null, $mergeArgs)
+            $apps = $catalog.GetMethod('BuildBundledCatalog').Invoke($null, $null)
+            if (Test-Path Env:\NILLYHUB_CI_RELEASES_TOKEN) {
+              throw 'The API token was not consumed before invoking installers'
+            }
           } finally {
             Remove-Item Env:\NILLYHUB_CI_RELEASES_TOKEN -ErrorAction SilentlyContinue
           }
@@ -60,7 +56,7 @@ jobs:
           foreach ($app in $apps) {
             try {
               $install.Invoke($null, [object[]]@($app.PSObject.BaseObject, $progress))
-              $refresh.Invoke($null, [object[]]@($app.PSObject.BaseObject, $root))
+              $refresh.Invoke($null, [object[]]@($app.PSObject.BaseObject, $root.PSObject.BaseObject))
               if (-not $app.IsInstalled -or -not (Test-Path -LiteralPath $app.LocalLaunchPath -PathType Leaf)) {
                 throw 'Launcher was not installed'
               }
