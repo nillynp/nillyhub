@@ -33,7 +33,7 @@ if ($needBuild) {
     $cscArgs = @(
         '/nologo', '/target:winexe', '/optimize+', '/utf8output', '/platform:anycpu', "/out:$exePath",
         '/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll',
-        '/r:System.IO.Compression.dll', '/r:System.IO.Compression.FileSystem.dll', '/r:System.Web.Extensions.dll'
+        '/r:System.IO.Compression.dll', '/r:System.IO.Compression.FileSystem.dll'
     )
     if (Test-Path $icoPath) { $cscArgs += "/win32icon:$icoPath" }
     $cscArgs += $srcPath

@@ -1,8 +1,8 @@
 ﻿// ============================================================================
-// NillyHub — Minimal Square-Tile Nilly Suite Launcher & Live GitHub Updater
+// NillyHub v1.2 — Ultra-Light Minimal Nilly Suite Launcher & Live GitHub Updater
 // created by Nilly graphics (Nillygraphics · Sotiris Christos) — https://nillygraphics.com/
 // Strictly C# 5 compatible (.NET Framework 4.x csc.exe — 0 external DLLs)
-// ~58 KB Native EXE · 0 MB background RAM · Direct PNG-Frame ICO Renderer
+// ~58 KB Native EXE · 0 MB background RAM · ETag Cache · Zero-Flicker Grid
 // ============================================================================
 
 using System;
@@ -11,17 +11,18 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
-using System.Security.Cryptography;
-using System.Web.Script.Serialization;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 [assembly: AssemblyTitle("NillyHub")]
 [assembly: AssemblyDescription("Ultra-Light Minimal Nilly Suite Launcher & Live GitHub Auto-Updater — created by Nilly graphics (Nillygraphics · Sotiris Christos)")]
@@ -29,18 +30,24 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.1.0.0")]
-[assembly: AssemblyFileVersion("1.1.0.0")]
+[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyFileVersion("1.2.0.0")]
 
 namespace NillyHub
 {
     internal static class Native
     {
         public const int SW_RESTORE = 9;
+        private const int EM_SETCUEBANNER = 0x1501;
+
         [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
         [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
         [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
         [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int sz);
+        [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
+        [DllImport("kernel32.dll")] private static extern bool SetProcessWorkingSetSize(IntPtr hProcess, IntPtr minSize, IntPtr maxSize);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, string lParam);
 
         public static void SetDarkTitlebar(IntPtr hwnd, bool dark)
         {
@@ -53,10 +60,169 @@ namespace NillyHub
             }
             catch { }
         }
+
+        public static void SetCueBanner(TextBox tb, string text)
+        {
+            if (tb == null || !tb.IsHandleCreated) return;
+            try { SendMessage(tb.Handle, EM_SETCUEBANNER, (IntPtr)1, text); } catch { }
+        }
+
+        public static void TrimWorkingSet()
+        {
+            try
+            {
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Optimized, false);
+                SetProcessWorkingSetSize(GetCurrentProcess(), (IntPtr)(-1), (IntPtr)(-1));
+            }
+            catch { }
+        }
     }
 
     // ========================================================================
-    // CRISP PNG-FRAME ICO DECODER (100% fixes .NET Icon.ToBitmap() noise bug!)
+    // TINY STRICT RFC-8259 PURE-C# JSON PARSER (Zero System.Web.Extensions!)
+    // ========================================================================
+    internal static class MiniJson
+    {
+        public static object Parse(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+            int idx = 0;
+            object val = ParseValue(json, ref idx, 0);
+            SkipWs(json, ref idx);
+            if (idx != json.Length) throw new InvalidDataException("Unexpected trailing JSON data.");
+            return val;
+        }
+
+        private static object ParseValue(string s, ref int i, int depth)
+        {
+            if (depth > 24) throw new InvalidDataException("JSON nesting too deep.");
+            SkipWs(s, ref i);
+            if (i >= s.Length) throw new InvalidDataException("Unexpected end of JSON.");
+            char c = s[i];
+            if (c == '{') return ParseObject(s, ref i, depth + 1);
+            if (c == '[') return ParseArray(s, ref i, depth + 1);
+            if (c == '"') return ParseString(s, ref i);
+            if (c == 't' && MatchLit(s, ref i, "true")) return true;
+            if (c == 'f' && MatchLit(s, ref i, "false")) return false;
+            if (c == 'n' && MatchLit(s, ref i, "null")) return null;
+            if (c == '-' || (c >= '0' && c <= '9')) return ParseNumber(s, ref i);
+            throw new InvalidDataException("Invalid JSON token.");
+        }
+
+        private static Dictionary<string, object> ParseObject(string s, ref int i, int depth)
+        {
+            Dictionary<string, object> obj = new Dictionary<string, object>(StringComparer.Ordinal);
+            i++; // '{'
+            SkipWs(s, ref i);
+            if (i < s.Length && s[i] == '}') { i++; return obj; }
+            while (true)
+            {
+                SkipWs(s, ref i);
+                if (i >= s.Length || s[i] != '"') throw new InvalidDataException("Expected JSON key.");
+                string key = ParseString(s, ref i);
+                SkipWs(s, ref i);
+                if (i >= s.Length || s[i] != ':') throw new InvalidDataException("Expected ':' in JSON object.");
+                i++;
+                obj[key] = ParseValue(s, ref i, depth);
+                SkipWs(s, ref i);
+                if (i < s.Length && s[i] == ',') { i++; continue; }
+                if (i < s.Length && s[i] == '}') { i++; return obj; }
+                throw new InvalidDataException("Expected ',' or '}' in JSON object.");
+            }
+        }
+
+        private static List<object> ParseArray(string s, ref int i, int depth)
+        {
+            List<object> arr = new List<object>();
+            i++; // '['
+            SkipWs(s, ref i);
+            if (i < s.Length && s[i] == ']') { i++; return arr; }
+            while (true)
+            {
+                arr.Add(ParseValue(s, ref i, depth));
+                SkipWs(s, ref i);
+                if (i < s.Length && s[i] == ',') { i++; continue; }
+                if (i < s.Length && s[i] == ']') { i++; return arr; }
+                throw new InvalidDataException("Expected ',' or ']' in JSON array.");
+            }
+        }
+
+        private static string ParseString(string s, ref int i)
+        {
+            i++; // '"'
+            StringBuilder sb = new StringBuilder();
+            while (i < s.Length)
+            {
+                char c = s[i++];
+                if (c == '"') return sb.ToString();
+                if (c == '\\')
+                {
+                    if (i >= s.Length) throw new InvalidDataException("Incomplete JSON escape.");
+                    char e = s[i++];
+                    if (e == '"' || e == '\\' || e == '/') sb.Append(e);
+                    else if (e == 'b') sb.Append('\b');
+                    else if (e == 'f') sb.Append('\f');
+                    else if (e == 'n') sb.Append('\n');
+                    else if (e == 'r') sb.Append('\r');
+                    else if (e == 't') sb.Append('\t');
+                    else if (e == 'u' && i + 4 <= s.Length)
+                    {
+                        int code;
+                        if (!int.TryParse(s.Substring(i, 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out code))
+                            throw new InvalidDataException("Invalid JSON unicode escape.");
+                        sb.Append((char)code);
+                        i += 4;
+                    }
+                    else throw new InvalidDataException("Invalid JSON escape.");
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
+            throw new InvalidDataException("Unterminated JSON string.");
+        }
+
+        private static object ParseNumber(string s, ref int i)
+        {
+            int start = i;
+            if (s[i] == '-') i++;
+            while (i < s.Length && s[i] >= '0' && s[i] <= '9') i++;
+            bool isFloat = false;
+            if (i < s.Length && s[i] == '.') { isFloat = true; i++; while (i < s.Length && s[i] >= '0' && s[i] <= '9') i++; }
+            if (i < s.Length && (s[i] == 'e' || s[i] == 'E'))
+            {
+                isFloat = true; i++;
+                if (i < s.Length && (s[i] == '+' || s[i] == '-')) i++;
+                while (i < s.Length && s[i] >= '0' && s[i] <= '9') i++;
+            }
+            string raw = s.Substring(start, i - start);
+            if (!isFloat)
+            {
+                long lv;
+                if (long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out lv)) return lv;
+            }
+            double dv;
+            if (double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out dv)) return dv;
+            throw new InvalidDataException("Invalid JSON number.");
+        }
+
+        private static bool MatchLit(string s, ref int i, string lit)
+        {
+            if (i + lit.Length > s.Length) return false;
+            for (int k = 0; k < lit.Length; k++) if (s[i + k] != lit[k]) return false;
+            i += lit.Length;
+            return true;
+        }
+
+        private static void SkipWs(string s, ref int i)
+        {
+            while (i < s.Length && (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n')) i++;
+        }
+    }
+
+    // ========================================================================
+    // CRISP PNG-FRAME ICO DECODER + CUSTOM VECTOR GLYPHS (Zero Noise, Low RAM)
     // ========================================================================
     internal static class IconLoader
     {
@@ -77,7 +243,6 @@ namespace NillyHub
                     int len = BitConverter.ToInt32(data, e + 8);
                     int off = BitConverter.ToInt32(data, e + 12);
                     if (off < 0 || len <= 8 || off + len > data.Length) continue;
-                    // Check PNG magic header (89 50 4E 47)
                     bool isPng = (data[off] == 0x89 && data[off + 1] == 0x50 && data[off + 2] == 0x4E && data[off + 3] == 0x47);
                     if (isPng && w > bestDim)
                     {
@@ -105,30 +270,130 @@ namespace NillyHub
             return null;
         }
 
-        public static Bitmap DrawPlaceholderIcon(string title, Color accent, int sz)
+        public static Bitmap DrawPlaceholderIcon(string appId, string title, Color accent, int sz)
         {
             Bitmap bmp = new Bitmap(sz, sz, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             using (Graphics g = Graphics.FromImage(bmp))
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-                float stroke = Math.Max(1.8f, sz * 0.048f);
+                float stroke = Math.Max(1.8f, sz * 0.045f);
                 float pad = sz * 0.045f + stroke / 2f;
                 float w = sz - 2f * pad;
                 using (GraphicsPath gp = RoundRectF(pad, pad, w, w, w * 0.22f))
                 using (LinearGradientBrush bg = new LinearGradientBrush(new RectangleF(pad, pad, w, w),
-                    Color.FromArgb(44, 46, 39), Color.FromArgb(28, 30, 26), 135f))
-                using (Pen bp = new Pen(Color.FromArgb(252, 150, 31), stroke))
+                    Color.FromArgb(42, 45, 52), Color.FromArgb(24, 26, 31), 135f))
+                using (Pen bp = new Pen(Color.FromArgb(200, accent.R, accent.G, accent.B), stroke))
                 {
                     g.FillPath(bg, gp);
                     g.DrawPath(bp, gp);
                 }
-                string mono = title.StartsWith("Nilly") && title.Length > 5 ? title.Substring(5, 1).ToUpper() : title.Substring(0, 1).ToUpper();
-                using (Font f = new Font("Segoe UI", sz * 0.36f, FontStyle.Bold, GraphicsUnit.Pixel))
+
+                float cx = sz * 0.5f, cy = sz * 0.5f, u = sz * 0.22f;
+                using (Pen p = new Pen(accent, Math.Max(1.8f, sz * 0.044f)))
                 using (SolidBrush br = new SolidBrush(accent))
                 {
-                    SizeF m = g.MeasureString(mono, f);
-                    g.DrawString(mono, f, br, (sz - m.Width) / 2f, (sz - m.Height) / 2f + 1f);
+                    p.StartCap = LineCap.Round; p.EndCap = LineCap.Round; p.LineJoin = LineJoin.Round;
+                    if (appId == "nillyview")
+                    {
+                        g.DrawRectangle(p, cx - u, cy - u * 0.78f, u * 2f, u * 1.56f);
+                        g.FillEllipse(br, cx - u * 0.52f, cy - u * 0.42f, u * 0.36f, u * 0.36f);
+                        g.DrawLines(p, new PointF[] {
+                            new PointF(cx - u * 0.8f, cy + u * 0.55f),
+                            new PointF(cx - u * 0.15f, cy - u * 0.08f),
+                            new PointF(cx + u * 0.22f, cy + u * 0.28f),
+                            new PointF(cx + u * 0.55f, cy - u * 0.02f),
+                            new PointF(cx + u * 0.85f, cy + u * 0.55f)
+                        });
+                    }
+                    else if (appId == "nillydoc")
+                    {
+                        g.DrawRectangle(p, cx - u * 0.72f, cy - u * 0.92f, u * 1.44f, u * 1.84f);
+                        using (Font f = new Font("Segoe UI", sz * 0.20f, FontStyle.Bold, GraphicsUnit.Pixel))
+                        {
+                            SizeF m = g.MeasureString("PDF", f);
+                            g.DrawString("PDF", f, br, cx - m.Width / 2f, cy - m.Height / 2f + 1f);
+                        }
+                    }
+                    else if (appId == "nillynote")
+                    {
+                        g.DrawRectangle(p, cx - u * 0.78f, cy - u * 0.88f, u * 1.56f, u * 1.76f);
+                        g.DrawLine(p, cx - u * 0.44f, cy - u * 0.36f, cx + u * 0.44f, cy - u * 0.36f);
+                        g.DrawLine(p, cx - u * 0.44f, cy + u * 0.02f, cx + u * 0.44f, cy + u * 0.02f);
+                        g.DrawLine(p, cx - u * 0.44f, cy + u * 0.40f, cx + u * 0.16f, cy + u * 0.40f);
+                    }
+                    else if (appId == "nillycode")
+                    {
+                        g.DrawLines(p, new PointF[] { new PointF(cx - u * 0.42f, cy - u * 0.52f), new PointF(cx - u * 0.92f, cy), new PointF(cx - u * 0.42f, cy + u * 0.52f) });
+                        g.DrawLines(p, new PointF[] { new PointF(cx + u * 0.42f, cy - u * 0.52f), new PointF(cx + u * 0.92f, cy), new PointF(cx + u * 0.42f, cy + u * 0.52f) });
+                        g.DrawLine(p, cx + u * 0.14f, cy - u * 0.62f, cx - u * 0.14f, cy + u * 0.62f);
+                    }
+                    else if (appId == "nillycalc")
+                    {
+                        g.DrawRectangle(p, cx - u * 0.78f, cy - u * 0.88f, u * 1.56f, u * 1.76f);
+                        g.DrawLine(p, cx - u * 0.46f, cy - u * 0.42f, cx + u * 0.46f, cy - u * 0.42f);
+                        float d = u * 0.24f;
+                        g.FillEllipse(br, cx - u * 0.48f, cy - u * 0.04f, d, d);
+                        g.FillEllipse(br, cx - d * 0.5f, cy - u * 0.04f, d, d);
+                        g.FillEllipse(br, cx + u * 0.24f, cy - u * 0.04f, d, d);
+                        g.FillEllipse(br, cx - u * 0.48f, cy + u * 0.36f, d, d);
+                        g.FillEllipse(br, cx - d * 0.5f, cy + u * 0.36f, d, d);
+                        g.FillEllipse(br, cx + u * 0.24f, cy + u * 0.36f, d, d);
+                    }
+                    else if (appId == "nillybatch")
+                    {
+                        g.DrawRectangle(p, cx - u * 0.82f, cy - u * 0.78f, u * 1.24f, u * 1.18f);
+                        g.DrawRectangle(p, cx - u * 0.42f, cy - u * 0.38f, u * 1.24f, u * 1.18f);
+                    }
+                    else if (appId == "nillymedia")
+                    {
+                        PointF[] tri = new PointF[] { new PointF(cx - u * 0.55f, cy - u * 0.78f), new PointF(cx + u * 0.78f, cy), new PointF(cx - u * 0.55f, cy + u * 0.78f) };
+                        g.FillPolygon(br, tri);
+                    }
+                    else if (appId == "nillyquicksnap")
+                    {
+                        float k = u * 0.84f, arm = u * 0.46f;
+                        g.DrawLines(p, new PointF[] { new PointF(cx - k, cy - k + arm), new PointF(cx - k, cy - k), new PointF(cx - k + arm, cy - k) });
+                        g.DrawLines(p, new PointF[] { new PointF(cx + k - arm, cy - k), new PointF(cx + k, cy - k), new PointF(cx + k, cy - k + arm) });
+                        g.DrawLines(p, new PointF[] { new PointF(cx - k, cy + k - arm), new PointF(cx - k, cy + k), new PointF(cx - k + arm, cy + k) });
+                        g.DrawLines(p, new PointF[] { new PointF(cx + k - arm, cy + k), new PointF(cx + k, cy + k), new PointF(cx + k, cy + k - arm) });
+                        g.FillEllipse(br, cx - u * 0.22f, cy - u * 0.22f, u * 0.44f, u * 0.44f);
+                    }
+                    else if (appId == "nillydisk")
+                    {
+                        g.DrawEllipse(p, cx - u * 0.85f, cy - u * 0.85f, u * 1.7f, u * 1.7f);
+                        g.DrawLine(p, cx, cy, cx, cy - u * 0.85f);
+                        g.DrawLine(p, cx, cy, cx + u * 0.72f, cy + u * 0.42f);
+                    }
+                    else if (appId == "pcmanager")
+                    {
+                        PointF[] sh = new PointF[] {
+                            new PointF(cx, cy - u * 0.95f),
+                            new PointF(cx + u * 0.82f, cy - u * 0.56f),
+                            new PointF(cx + u * 0.72f, cy + u * 0.28f),
+                            new PointF(cx, cy + u * 0.95f),
+                            new PointF(cx - u * 0.72f, cy + u * 0.28f),
+                            new PointF(cx - u * 0.82f, cy - u * 0.56f)
+                        };
+                        g.DrawPolygon(p, sh);
+                        g.DrawLines(p, new PointF[] { new PointF(cx - u * 0.34f, cy + u * 0.04f), new PointF(cx - u * 0.06f, cy + u * 0.32f), new PointF(cx + u * 0.38f, cy - u * 0.24f) });
+                    }
+                    else if (appId == "nillyclip")
+                    {
+                        g.DrawRectangle(p, cx - u * 0.74f, cy - u * 0.72f, u * 1.48f, u * 1.62f);
+                        g.DrawRectangle(p, cx - u * 0.38f, cy - u * 0.96f, u * 0.76f, u * 0.42f);
+                        g.DrawLine(p, cx - u * 0.38f, cy + u * 0.06f, cx + u * 0.38f, cy + u * 0.06f);
+                        g.DrawLine(p, cx - u * 0.38f, cy + u * 0.44f, cx + u * 0.22f, cy + u * 0.44f);
+                    }
+                    else
+                    {
+                        string mono = title.StartsWith("Nilly") && title.Length > 5 ? title.Substring(5, 1).ToUpper() : title.Substring(0, 1).ToUpper();
+                        using (Font f = new Font("Segoe UI", sz * 0.36f, FontStyle.Bold, GraphicsUnit.Pixel))
+                        {
+                            SizeF m = g.MeasureString(mono, f);
+                            g.DrawString(mono, f, br, (sz - m.Width) / 2f, (sz - m.Height) / 2f + 1f);
+                        }
+                    }
                 }
             }
             return bmp;
@@ -198,39 +463,122 @@ namespace NillyHub
 
         public static string HttpGet(string url)
         {
+            string ignored;
+            return HttpGetConditional(url, null, out ignored);
+        }
+
+        // Supports HTTP ETag (If-None-Match -> 304 Not Modified uses 0 bandwidth & 0 GitHub rate-limit quota!)
+        public static string HttpGetConditional(string url, string etag, out string newEtag)
+        {
+            newEtag = etag;
             HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
-            req.UserAgent = "NillyHub/1.1 (https://nillygraphics.com/)";
+            req.UserAgent = "NillyHub/1.2 (https://nillygraphics.com/)";
             req.Accept = "application/vnd.github+json";
+            req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
             req.Timeout = 12000;
             req.ReadWriteTimeout = 15000;
-            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
-            using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
-                return sr.ReadToEnd();
+            if (!string.IsNullOrEmpty(etag)) req.Headers[HttpRequestHeader.IfNoneMatch] = etag;
+            try
+            {
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                {
+                    string hdr = resp.Headers["ETag"];
+                    if (!string.IsNullOrEmpty(hdr)) newEtag = hdr;
+                    using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                        return sr.ReadToEnd();
+                }
+            }
+            catch (WebException wex)
+            {
+                HttpWebResponse hr = wex.Response as HttpWebResponse;
+                if (hr != null && hr.StatusCode == HttpStatusCode.NotModified)
+                {
+                    hr.Close();
+                    return null; // 304 Not Modified -> caller reuses local cache!
+                }
+                throw;
+            }
+        }
+
+        public static List<GitHubRepoInfo> LoadCachedRepos(string suiteRoot)
+        {
+            try
+            {
+                string cacheFile = Path.Combine(suiteRoot, ".nillyhub_repos_cache.json");
+                if (!File.Exists(cacheFile)) return null;
+                return ParseRepoListJson(File.ReadAllText(cacheFile, Encoding.UTF8));
+            }
+            catch { return null; }
         }
 
         public static List<GitHubRepoInfo> FetchAllOwnerRepos()
         {
-            List<GitHubRepoInfo> list = new List<GitHubRepoInfo>();
-            string json = HttpGet("https://api.github.com/users/" + OWNER + "/repos?per_page=60&sort=updated");
-            if (string.IsNullOrEmpty(json)) return list;
-            List<string> objs = SplitTopLevelJsonObjects(json);
-            for (int i = 0; i < objs.Count; i++)
+            string ignored;
+            return FetchAllOwnerReposCached(null, false, out ignored);
+        }
+
+        public static List<GitHubRepoInfo> FetchAllOwnerReposCached(string suiteRoot, bool allowConditional, out string sourceLabel)
+        {
+            sourceLabel = "live";
+            string cacheFile = string.IsNullOrEmpty(suiteRoot) ? null : Path.Combine(suiteRoot, ".nillyhub_repos_cache.json");
+            string etagFile = string.IsNullOrEmpty(suiteRoot) ? null : Path.Combine(suiteRoot, ".nillyhub_repos.etag");
+            string prevEtag = null;
+            if (allowConditional && !string.IsNullOrEmpty(etagFile) && File.Exists(etagFile) && File.Exists(cacheFile))
             {
-                string o = objs[i];
-                string name = ExtractJsonString(o, "name");
+                try { prevEtag = File.ReadAllText(etagFile, Encoding.UTF8).Trim(); } catch { }
+            }
+
+            string newEtag;
+            string json = HttpGetConditional("https://api.github.com/users/" + OWNER + "/repos?per_page=60&sort=updated", prevEtag, out newEtag);
+            if (json == null && !string.IsNullOrEmpty(cacheFile) && File.Exists(cacheFile))
+            {
+                sourceLabel = "cached";
+                return ParseRepoListJson(File.ReadAllText(cacheFile, Encoding.UTF8));
+            }
+            if (string.IsNullOrEmpty(json)) return new List<GitHubRepoInfo>();
+
+            if (!string.IsNullOrEmpty(cacheFile))
+            {
+                try
+                {
+                    File.WriteAllText(cacheFile, json, Encoding.UTF8);
+                    if (!string.IsNullOrEmpty(newEtag)) File.WriteAllText(etagFile, newEtag, Encoding.UTF8);
+                }
+                catch { }
+            }
+            return ParseRepoListJson(json);
+        }
+
+        private static List<GitHubRepoInfo> ParseRepoListJson(string json)
+        {
+            List<GitHubRepoInfo> list = new List<GitHubRepoInfo>();
+            if (string.IsNullOrEmpty(json)) return list;
+            List<object> arr = MiniJson.Parse(json) as List<object>;
+            if (arr == null) return list;
+            for (int i = 0; i < arr.Count; i++)
+            {
+                Dictionary<string, object> o = arr[i] as Dictionary<string, object>;
+                if (o == null) continue;
+                string name = GetStr(o, "name");
                 if (string.IsNullOrEmpty(name)) continue;
                 GitHubRepoInfo info = new GitHubRepoInfo();
                 info.Name = name;
-                info.Description = ExtractJsonString(o, "description") ?? "";
-                info.Homepage = ExtractJsonString(o, "homepage") ?? "";
-                info.DefaultBranch = ExtractJsonString(o, "default_branch") ?? "main";
-                info.PushedAtRaw = ExtractJsonString(o, "pushed_at") ?? ExtractJsonString(o, "updated_at") ?? "";
+                info.Description = GetStr(o, "description") ?? "";
+                info.Homepage = GetStr(o, "homepage") ?? "";
+                info.DefaultBranch = GetStr(o, "default_branch") ?? "main";
+                info.PushedAtRaw = GetStr(o, "pushed_at") ?? GetStr(o, "updated_at") ?? "";
                 DateTime dt;
-                if (DateTime.TryParse(info.PushedAtRaw, null, System.Globalization.DateTimeStyles.AdjustToUniversal, out dt))
+                if (DateTime.TryParse(info.PushedAtRaw, null, DateTimeStyles.AdjustToUniversal, out dt))
                     info.PushedAtUtc = dt;
                 list.Add(info);
             }
             return list;
+        }
+
+        private static string GetStr(Dictionary<string, object> o, string key)
+        {
+            object v;
+            return o.TryGetValue(key, out v) ? (v as string) : null;
         }
 
         private static readonly Dictionary<string, string> PackagePrefixes = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -259,30 +607,45 @@ namespace NillyHub
 
         internal static string ReadPortableAsset(string json, string repoName, string prefix, out string tag, out string digest, out long size)
         {
-            JavaScriptSerializer serializer = new JavaScriptSerializer { MaxJsonLength = 128 * 1024, RecursionLimit = 24 };
-            Dictionary<string, object> release = serializer.Deserialize<Dictionary<string, object>>(json);
-            if (release == null || !object.Equals(release["draft"], false) || !object.Equals(release["prerelease"], false))
+            if (string.IsNullOrEmpty(json) || json.Length > 256 * 1024)
+                throw new InvalidDataException("Μη έγκυρη απόκριση GitHub release.");
+            Dictionary<string, object> release = MiniJson.Parse(json) as Dictionary<string, object>;
+            object draftVal = null, preVal = null, tagVal = null, assetsVal = null;
+            if (release == null ||
+                !release.TryGetValue("draft", out draftVal) || !object.Equals(draftVal, false) ||
+                !release.TryGetValue("prerelease", out preVal) || !object.Equals(preVal, false))
                 throw new InvalidDataException("Χρειάζεται δημόσια σταθερή έκδοση.");
-            tag = release["tag_name"] as string;
+            release.TryGetValue("tag_name", out tagVal);
+            tag = tagVal as string;
             if (tag == null || !Regex.IsMatch(tag, @"^v[0-9]+(\.[0-9]+){1,2}$"))
                 throw new InvalidDataException("Μη αναγνωρισμένο tag έκδοσης.");
             string name = prefix + "-" + tag + "-Portable.zip";
             string url = "https://github.com/" + OWNER + "/" + repoName + "/releases/download/" + tag + "/" + name;
             digest = null;
             size = 0;
-            foreach (object value in (System.Collections.IEnumerable)release["assets"])
+            release.TryGetValue("assets", out assetsVal);
+            List<object> assets = assetsVal as List<object>;
+            if (assets != null)
             {
-                Dictionary<string, object> asset = value as Dictionary<string, object>;
-                if (asset == null || !object.Equals(asset["name"], name)) continue;
-                if (digest != null || !object.Equals(asset["state"], "uploaded") || !object.Equals(asset["browser_download_url"], url))
-                    throw new InvalidDataException("Το portable ZIP δεν αντιστοιχεί στη σταθερή έκδοση.");
-                string rawDigest = asset["digest"] as string;
-                if (rawDigest == null || !Regex.IsMatch(rawDigest, @"^sha256:[0-9a-f]{64}$"))
-                    throw new InvalidDataException("Απουσιάζει το SHA-256 του portable ZIP.");
-                digest = rawDigest.Substring(7);
-                size = Convert.ToInt64(asset["size"], System.Globalization.CultureInfo.InvariantCulture);
-                if (size <= 0 || size > 32L * 1024L * 1024L)
-                    throw new InvalidDataException("Μη αποδεκτό μέγεθος ZIP.");
+                for (int i = 0; i < assets.Count; i++)
+                {
+                    Dictionary<string, object> asset = assets[i] as Dictionary<string, object>;
+                    if (asset == null || !object.Equals(GetStr(asset, "name"), name)) continue;
+                    if (digest != null ||
+                        !object.Equals(GetStr(asset, "state"), "uploaded") ||
+                        !object.Equals(GetStr(asset, "browser_download_url"), url))
+                        throw new InvalidDataException("Το portable ZIP δεν αντιστοιχεί στη σταθερή έκδοση.");
+                    string rawDigest = GetStr(asset, "digest");
+                    if (rawDigest == null || !Regex.IsMatch(rawDigest, @"^sha256:[0-9a-f]{64}$"))
+                        throw new InvalidDataException("Απουσιάζει το SHA-256 του portable ZIP.");
+                    digest = rawDigest.Substring(7);
+                    object szObj;
+                    if (!asset.TryGetValue("size", out szObj))
+                        throw new InvalidDataException("Απουσιάζει το μέγεθος του portable ZIP.");
+                    size = Convert.ToInt64(szObj, CultureInfo.InvariantCulture);
+                    if (size <= 0 || size > 32L * 1024L * 1024L)
+                        throw new InvalidDataException("Μη αποδεκτό μέγεθος ZIP.");
+                }
             }
             if (digest == null) throw new FileNotFoundException("Δεν βρέθηκε επαληθεύσιμο portable ZIP.");
             return url;
@@ -291,7 +654,7 @@ namespace NillyHub
         public static void DownloadVerifiedZip(string url, string destination, string expectedHash, long expectedBytes)
         {
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-            request.UserAgent = "NillyHub/1.1 (https://nillygraphics.com/)";
+            request.UserAgent = "NillyHub/1.2 (https://nillygraphics.com/)";
             request.Timeout = 18000;
             request.ReadWriteTimeout = 18000;
             using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
@@ -316,63 +679,6 @@ namespace NillyHub
                 if (!actual.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("Το SHA-256 του ZIP δεν συμφωνεί.");
             }
-        }
-
-        private static List<string> SplitTopLevelJsonObjects(string arrJson)
-        {
-            List<string> res = new List<string>();
-            int depth = 0, objStart = -1;
-            bool inStr = false, esc = false;
-            for (int i = 0; i < arrJson.Length; i++)
-            {
-                char ch = arrJson[i];
-                if (inStr)
-                {
-                    if (esc) esc = false;
-                    else if (ch == '\\') esc = true;
-                    else if (ch == '"') inStr = false;
-                    continue;
-                }
-                if (ch == '"') inStr = true;
-                else if (ch == '{') { if (depth == 0) objStart = i; depth++; }
-                else if (ch == '}')
-                {
-                    depth--;
-                    if (depth == 0 && objStart >= 0) { res.Add(arrJson.Substring(objStart, i - objStart + 1)); objStart = -1; }
-                }
-            }
-            return res;
-        }
-
-        private static string ExtractJsonString(string objJson, string key)
-        {
-            Match m = Regex.Match(objJson, "\"" + Regex.Escape(key) + "\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"");
-            return m.Success ? UnescapeJson(m.Groups[1].Value) : null;
-        }
-
-        private static string UnescapeJson(string s)
-        {
-            if (string.IsNullOrEmpty(s)) return s;
-            StringBuilder sb = new StringBuilder(s.Length);
-            for (int i = 0; i < s.Length; i++)
-            {
-                if (s[i] == '\\' && i + 1 < s.Length)
-                {
-                    char n = s[++i];
-                    if (n == 'n') sb.Append('\n');
-                    else if (n == 'r') sb.Append('\r');
-                    else if (n == 't') sb.Append('\t');
-                    else if (n == 'u' && i + 4 < s.Length)
-                    {
-                        int code;
-                        if (int.TryParse(s.Substring(i + 1, 4), System.Globalization.NumberStyles.HexNumber, null, out code))
-                        { sb.Append((char)code); i += 4; }
-                    }
-                    else sb.Append(n);
-                }
-                else sb.Append(s[i]);
-            }
-            return sb.ToString();
         }
     }
 
@@ -411,16 +717,151 @@ namespace NillyHub
             return a;
         }
 
+        private static string TryFindInstalledLaunchPath(SuiteApp app, string suiteRoot)
+        {
+            if (string.IsNullOrEmpty(app.LaunchFile)) return null;
+
+            // 1. Canonical NillySuite install directory (%LOCALAPPDATA%\NillySuite\<Folder>)
+            string p1 = Path.Combine(suiteRoot, app.FolderName, app.LaunchFile);
+            if (File.Exists(p1)) return p1;
+
+            // 2. Direct %LOCALAPPDATA%\<Folder>
+            string p2 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), app.FolderName, app.LaunchFile);
+            if (File.Exists(p2)) return p2;
+
+            // 3. Windows Registry HKCU\Software\Classes\Applications\<LaunchFile>\shell\open\command
+            try
+            {
+                using (RegistryKey rk = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Applications\" + app.LaunchFile + @"\shell\open\command"))
+                {
+                    if (rk != null)
+                    {
+                        string cmd = rk.GetValue("") as string;
+                        string extracted = ExtractExeFromCommand(cmd);
+                        if (!string.IsNullOrEmpty(extracted) && File.Exists(extracted)) return extracted;
+                    }
+                }
+            }
+            catch { }
+
+            // 4. Sibling folder next to NillyHub's directory (portable suite folder layout)
+            try
+            {
+                string exeDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+                DirectoryInfo parent = Directory.GetParent(exeDir);
+                if (parent != null)
+                {
+                    string sib = Path.Combine(parent.FullName, app.FolderName, app.LaunchFile);
+                    if (File.Exists(sib)) return sib;
+                }
+            }
+            catch { }
+
+            // 5. Start Menu "Nilly graphics" & Desktop shortcuts (pure-C# .lnk path scan, zero COM!)
+            string fromLnk = FindLaunchFromShortcuts(app);
+            if (!string.IsNullOrEmpty(fromLnk) && File.Exists(fromLnk)) return fromLnk;
+
+            return null;
+        }
+
+        private static string ExtractExeFromCommand(string cmd)
+        {
+            if (string.IsNullOrEmpty(cmd)) return null;
+            cmd = cmd.Trim();
+            if (cmd.StartsWith("\""))
+            {
+                int end = cmd.IndexOf('"', 1);
+                return end > 1 ? cmd.Substring(1, end - 1) : null;
+            }
+            int sp = cmd.IndexOf(' ');
+            return sp > 0 ? cmd.Substring(0, sp) : cmd;
+        }
+
+        private static string FindLaunchFromShortcuts(SuiteApp app)
+        {
+            try
+            {
+                string[] dirs = new string[]
+                {
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Nilly graphics"),
+                    Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)
+                };
+                string fileLower = app.LaunchFile.ToLowerInvariant();
+                for (int d = 0; d < dirs.Length; d++)
+                {
+                    if (!Directory.Exists(dirs[d])) continue;
+                    string[] lnks = Directory.GetFiles(dirs[d], "*.lnk");
+                    for (int i = 0; i < lnks.Length; i++)
+                    {
+                        string lnkName = Path.GetFileNameWithoutExtension(lnks[i]);
+                        if (lnkName.IndexOf(app.DisplayName, StringComparison.OrdinalIgnoreCase) < 0 &&
+                            lnkName.IndexOf(app.FolderName, StringComparison.OrdinalIgnoreCase) < 0 &&
+                            !(app.Id == "pcmanager" && lnkName.IndexOf("PC Manager", StringComparison.OrdinalIgnoreCase) >= 0))
+                            continue;
+                        string target = ScanLnkForPath(lnks[i], fileLower);
+                        if (!string.IsNullOrEmpty(target) && File.Exists(target)) return target;
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private static string ScanLnkForPath(string lnkPath, string expectedFileLower)
+        {
+            try
+            {
+                byte[] raw = File.ReadAllBytes(lnkPath);
+                if (raw.Length < 64 || raw.Length > 32768) return null;
+                // Check ASCII & UTF-16LE embedded target paths inside standard Windows Shell Link (.lnk)
+                string ascii = Encoding.Default.GetString(raw);
+                string hit = MatchFilePath(ascii, expectedFileLower);
+                if (hit != null) return hit;
+                string utf16 = Encoding.Unicode.GetString(raw);
+                return MatchFilePath(utf16, expectedFileLower);
+            }
+            catch { return null; }
+        }
+
+        private static string MatchFilePath(string text, string expectedFileLower)
+        {
+            int idx = text.IndexOf(expectedFileLower, StringComparison.OrdinalIgnoreCase);
+            while (idx >= 3)
+            {
+                int end = idx + expectedFileLower.Length;
+                int start = idx;
+                while (start > 0 && text[start - 1] >= 32 && text[start - 1] != '"' && text[start - 1] != '<' && text[start - 1] != '>' && text[start - 1] != '|')
+                    start--;
+                for (int s = start; s + 2 < end; s++)
+                {
+                    if (((text[s] >= 'A' && text[s] <= 'Z') || (text[s] >= 'a' && text[s] <= 'z')) && text[s + 1] == ':' && text[s + 2] == '\\')
+                    {
+                        string cand = text.Substring(s, end - s).Trim();
+                        if (File.Exists(cand)) return cand;
+                    }
+                }
+                idx = text.IndexOf(expectedFileLower, end, StringComparison.OrdinalIgnoreCase);
+            }
+            return null;
+        }
+
         public static void RefreshLocalState(SuiteApp app, string suiteRoot)
         {
-            app.LocalDir = Path.Combine(suiteRoot, app.FolderName);
-            app.LocalLaunchPath = Path.Combine(app.LocalDir, app.LaunchFile);
-            app.IsInstalled = File.Exists(app.LocalLaunchPath);
-            if (!app.IsInstalled && !string.IsNullOrEmpty(app.LaunchFile))
+            string found = TryFindInstalledLaunchPath(app, suiteRoot);
+            if (!string.IsNullOrEmpty(found))
             {
-                string alt = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), app.FolderName, app.LaunchFile);
-                if (File.Exists(alt)) { app.LocalDir = Path.GetDirectoryName(alt); app.LocalLaunchPath = alt; app.IsInstalled = true; }
+                app.LocalLaunchPath = found;
+                app.LocalDir = Path.GetDirectoryName(found);
+                app.IsInstalled = true;
             }
+            else
+            {
+                app.LocalDir = Path.Combine(suiteRoot, app.FolderName);
+                app.LocalLaunchPath = Path.Combine(app.LocalDir, app.LaunchFile);
+                app.IsInstalled = false;
+            }
+
             if (app.IsInstalled)
             {
                 try
@@ -476,15 +917,21 @@ namespace NillyHub
                 if (!string.IsNullOrEmpty(app.ProcessName))
                 {
                     Process[] processes = Process.GetProcessesByName(app.ProcessName);
-                    foreach (Process process in processes) process.Dispose();
-                    if (processes.Length != 0)
+                    int count = processes.Length;
+                    for (int p = 0; p < count; p++) processes[p].Dispose();
+                    if (count != 0)
                         throw new InvalidOperationException("Κλείσε πρώτα το " + app.DisplayName + " για να κρατήσεις τις αλλαγές σου.");
                 }
 
-                string target = Path.Combine(DetectSuiteRoot(), app.FolderName);
+                string suiteRoot = DetectSuiteRoot();
+                string target = Path.Combine(suiteRoot, app.FolderName);
                 string backup = target + ".previous-" + Guid.NewGuid().ToString("N").Substring(0, 8);
                 if (Directory.Exists(target) && (File.GetAttributes(target) & FileAttributes.ReparsePoint) != 0)
                     throw new IOException("Ο φάκελος εγκατάστασης παραπέμπει αλλού.");
+
+                // Clean up stale backups from any earlier aborted runs
+                CleanupOldBackups(suiteRoot, app.FolderName);
+
                 bool previousMoved = false;
                 bool installing = false;
                 try
@@ -521,11 +968,15 @@ namespace NillyHub
                         throw new FileNotFoundException("Ο installer δεν δημιούργησε το αναμενόμενο αρχείο εκκίνησης.");
                     if (!string.IsNullOrEmpty(app.RemotePushedRaw))
                         File.WriteAllText(Path.Combine(target, ".nilly_pushed"), app.RemotePushedRaw, Encoding.UTF8);
+
+                    // Verified clean install: remove temporary rollback backup so disk stays spotless!
+                    if (previousMoved && Directory.Exists(backup))
+                        try { Directory.Delete(backup, true); } catch { }
                 }
                 catch
                 {
                     if (installing && Directory.Exists(target)) Directory.Delete(target, true);
-                    if (previousMoved) Directory.Move(backup, target);
+                    if (previousMoved && Directory.Exists(backup)) Directory.Move(backup, target);
                     throw;
                 }
             }
@@ -533,6 +984,17 @@ namespace NillyHub
             {
                 try { Directory.Delete(temp, true); } catch { }
             }
+        }
+
+        private static void CleanupOldBackups(string suiteRoot, string folderName)
+        {
+            try
+            {
+                string[] oldDirs = Directory.GetDirectories(suiteRoot, folderName + ".previous-*");
+                for (int i = 0; i < oldDirs.Length; i++)
+                    try { Directory.Delete(oldDirs[i], true); } catch { }
+            }
+            catch { }
         }
 
         private static void ExtractZipSmart(string zipPath, string targetDir)
@@ -570,7 +1032,19 @@ namespace NillyHub
     }
 
     // ========================================================================
-    // ULTRA-MINIMAL SQUARE TILE WITH CRISP VECTOR MINI-ICONS UNDERNEATH
+    // FLICKER-FREE DOUBLE-BUFFERED FLOW PANEL
+    // ========================================================================
+    internal sealed class DoubleBufferedFlowPanel : FlowLayoutPanel
+    {
+        public DoubleBufferedFlowPanel()
+        {
+            DoubleBuffered = true;
+            ResizeRedraw = true;
+        }
+    }
+
+    // ========================================================================
+    // ULTRA-MINIMAL SQUARE TILE WITH CACHED ICON & CRISP VECTOR MINI-ICONS
     // ========================================================================
     internal sealed class SquareAppTile : Control
     {
@@ -584,6 +1058,7 @@ namespace NillyHub
         private bool _tileHover = false;
         private int _hoverIconIdx = -1; // 0=Open/Install, 1=Update, 2=Folder, 3=Web
         private Bitmap _iconBmp;
+        private string _cachedIconKey;
         private readonly Rectangle[] _btnRects = new Rectangle[4];
         private readonly ToolTip _tip;
         private int _lastTipZone = -99;
@@ -601,7 +1076,6 @@ namespace NillyHub
             Margin = new Padding(8);
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
 
-            // 4 minimal vector icon buttons centered at the bottom
             int btnSz = 26;
             int gap = 8;
             int totalW = 4 * btnSz + 3 * gap;
@@ -610,26 +1084,36 @@ namespace NillyHub
             for (int i = 0; i < 4; i++)
                 _btnRects[i] = new Rectangle(bx + i * (btnSz + gap), by, btnSz, btnSz);
 
-            ReloadIcon();
+            EnsureIconLoaded();
         }
 
         public void RefreshTile(bool dark)
         {
             _dark = dark;
-            ReloadIcon();
+            EnsureIconLoaded();
             Invalidate();
         }
 
-        private void ReloadIcon()
+        private void EnsureIconLoaded()
         {
-            if (_iconBmp != null) { _iconBmp.Dispose(); _iconBmp = null; }
-            if (!string.IsNullOrEmpty(App.LocalDir) && !string.IsNullOrEmpty(App.IconFile))
+            string icoPath = (!string.IsNullOrEmpty(App.LocalDir) && !string.IsNullOrEmpty(App.IconFile))
+                ? Path.Combine(App.LocalDir, App.IconFile)
+                : "";
+            string key = "placeholder:" + App.Id;
+            if (!string.IsNullOrEmpty(icoPath) && File.Exists(icoPath))
             {
-                string icoPath = Path.Combine(App.LocalDir, App.IconFile);
-                _iconBmp = IconLoader.LoadCrispIcon(icoPath, 56);
+                try { key = icoPath + "|" + File.GetLastWriteTimeUtc(icoPath).Ticks; }
+                catch { key = icoPath; }
             }
+            if (_iconBmp != null && string.Equals(_cachedIconKey, key, StringComparison.Ordinal))
+                return;
+
+            if (_iconBmp != null) { _iconBmp.Dispose(); _iconBmp = null; }
+            if (!key.StartsWith("placeholder:"))
+                _iconBmp = IconLoader.LoadCrispIcon(icoPath, 56);
             if (_iconBmp == null)
-                _iconBmp = IconLoader.DrawPlaceholderIcon(App.DisplayName, App.AccentColor, 56);
+                _iconBmp = IconLoader.DrawPlaceholderIcon(App.Id, App.DisplayName, App.AccentColor, 56);
+            _cachedIconKey = key;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -651,7 +1135,6 @@ namespace NillyHub
 
             g.Clear(outerBg);
 
-            // Crisp rounded square card
             using (GraphicsPath gp = IconLoader.RoundRectF(1f, 1f, Width - 3f, Height - 3f, 12f))
             using (SolidBrush br = new SolidBrush(cardBg))
             using (Pen bp = new Pen(border, _tileHover ? 1.6f : 1f))
@@ -660,7 +1143,6 @@ namespace NillyHub
                 g.DrawPath(bp, gp);
             }
 
-            // Minimal top-right status dot / tiny pill
             if (App.Busy)
             {
                 DrawTinyPill(g, "...", Color.FromArgb(66, 46, 18), Color.FromArgb(252, 150, 31));
@@ -679,14 +1161,12 @@ namespace NillyHub
                 DrawTinyPill(g, "0€", Color.FromArgb(22, 48, 60), Color.FromArgb(102, 217, 239));
             }
 
-            // Centered Crisp 56x56 Hero Icon
             if (_iconBmp != null)
             {
                 g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                 g.DrawImage(_iconBmp, (Width - 56) / 2, 18, 56, 56);
             }
 
-            // Centered Clean Title & Short Tag
             Rectangle titleR = new Rectangle(8, 80, Width - 16, 20);
             TextRenderer.DrawText(g, App.DisplayName, FontTitle, titleR, fgTitle,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
@@ -696,11 +1176,9 @@ namespace NillyHub
             TextRenderer.DrawText(g, subTxt, FontSub, subR, fgMuted,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
 
-            // Subtle divider above minimal bottom icon row
             using (Pen dp = new Pen(divCol, 1f))
                 g.DrawLine(dp, 18, Height - 46, Width - 18, Height - 46);
 
-            // Draw 4 Minimal Vector Mini-Icons Underneath!
             DrawMiniIconBtn(g, 0, App.IsInstalled ? "play" : "download",
                 App.IsInstalled || App.FoundOnGitHub,
                 App.IsInstalled ? Color.FromArgb(252, 150, 31) : Color.FromArgb(102, 217, 239));
@@ -806,11 +1284,11 @@ namespace NillyHub
                 _lastTipZone = bi;
                 if (bi == 0) _tip.SetToolTip(this, App.IsInstalled ? ("Άνοιγμα " + App.DisplayName) : ("Εγκατάσταση " + App.DisplayName + " (0€)"));
                 else if (bi == 1) _tip.SetToolTip(this, App.HasUpdate ? "Διαθέσιμη ενημέρωση από GitHub — κλικ για Update" : "Έλεγχος / Ενημέρωση από GitHub");
-                else if (bi == 2) _tip.SetToolTip(this, "Άνοιγμα τοπικού φακέλου");
+                else if (bi == 2) _tip.SetToolTip(this, App.IsInstalled ? ("Άνοιγμα φακέλου: " + App.LocalDir) : "Άνοιγμα τοπικού φακέλου");
                 else if (bi == 3) _tip.SetToolTip(this, "Άνοιγμα στο nillygraphics.com / GitHub");
                 else
                 {
-                    string sz = App.IsInstalled ? (Math.Max(1, App.LocalExeBytes / 1024) + " KB") : "Μη εγκατεστημένο";
+                    string sz = App.IsInstalled ? (Math.Max(1, App.LocalExeBytes / 1024) + " KB · " + App.LocalDir) : "Μη εγκατεστημένο";
                     _tip.SetToolTip(this, App.DisplayName + " — " + App.Description + " (" + sz + ")");
                 }
             }
@@ -834,7 +1312,6 @@ namespace NillyHub
             else if (bi == 3) { if (SiteClicked != null) SiteClicked(App); }
             else
             {
-                // Clicking Play icon OR anywhere on the square tile launches (or installs if absent)!
                 if (App.IsInstalled) { if (LaunchClicked != null) LaunchClicked(App); }
                 else if (App.FoundOnGitHub && UpdateClicked != null) UpdateClicked(App);
             }
@@ -853,6 +1330,8 @@ namespace NillyHub
     // ========================================================================
     internal sealed class WindowsSwitchDialog : Form
     {
+        private static readonly Font DlgFont = new Font("Segoe UI", 9f);
+
         public WindowsSwitchDialog(bool dark)
         {
             Text = "NillyHub — Ρυθμίσεις Windows";
@@ -861,19 +1340,31 @@ namespace NillyHub
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
-            Font = new Font("Segoe UI", 9f);
+            Font = DlgFont;
             BackColor = dark ? Color.FromArgb(24, 25, 30) : Color.White;
             ForeColor = dark ? Color.White : Color.Black;
-            Label guide = new Label { Left = 20, Top = 20, Width = 450, Height = 72,
-                Text = "Άλλαξε τις προεπιλεγμένες εφαρμογές μέσα από τα Windows. Για το NillyClip Pro, άνοιξε τις ρυθμίσεις Προχείρου και διάλεξε εσύ αν θέλεις ιστορικό ή συγχρονισμό." };
-            Button defaults = SettingsButton("Προεπιλογές Windows", "ms-settings:defaultapps", 20);
-            Button clipboard = SettingsButton("Πρόχειρο και συγχρονισμός", "ms-settings:clipboard", 227);
+            HandleCreated += delegate { Native.SetDarkTitlebar(Handle, dark); };
+
+            Label guide = new Label
+            {
+                Left = 20, Top = 18, Width = 450, Height = 64,
+                Text = "Άλλαξε τις προεπιλεγμένες εφαρμογές μέσα από τα Windows. Για το NillyClip Pro, άνοιξε τις ρυθμίσεις Προχείρου και διάλεξε εσύ αν θέλεις ιστορικό ή συγχρονισμό."
+            };
+            Button defaults = SettingsButton("Προεπιλογές Windows", "ms-settings:defaultapps", 20, dark);
+            Button clipboard = SettingsButton("Πρόχειρο & Συγχρονισμός", "ms-settings:clipboard", 232, dark);
             Controls.AddRange(new Control[] { guide, defaults, clipboard });
         }
 
-        private static Button SettingsButton(string label, string page, int left)
+        private static Button SettingsButton(string label, string page, int left, bool dark)
         {
-            Button button = new Button { Text = label, Left = left, Top = 96, Width = 200, Height = 32, ForeColor = Color.Black, BackColor = Color.White };
+            Button button = new Button
+            {
+                Text = label, Left = left, Top = 96, Width = 218, Height = 34,
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                BackColor = dark ? Color.FromArgb(38, 42, 50) : Color.FromArgb(240, 243, 248),
+                ForeColor = dark ? Color.FromArgb(240, 244, 250) : Color.FromArgb(22, 24, 30)
+            };
+            button.FlatAppearance.BorderColor = dark ? Color.FromArgb(62, 68, 80) : Color.FromArgb(204, 210, 220);
             button.Click += delegate
             {
                 try { Process.Start(new ProcessStartInfo(page) { UseShellExecute = true }); }
@@ -888,6 +1379,13 @@ namespace NillyHub
     // ========================================================================
     internal sealed class MainForm : Form
     {
+        private static readonly Font FontBrand = new Font("Segoe UI", 11.5f, FontStyle.Bold);
+        private static readonly Font FontSub = new Font("Segoe UI", 7.8f);
+        private static readonly Font FontPill = new Font("Segoe UI", 8.3f, FontStyle.Bold);
+        private static readonly Font FontInput = new Font("Segoe UI", 9f);
+        private static readonly Font FontFooter = new Font("Segoe UI", 8.2f);
+        private static readonly Font FontBanner = new Font("Segoe UI", 8.5f, FontStyle.Regular);
+
         private readonly string _suiteRoot;
         private readonly List<SuiteApp> _apps;
         private readonly List<SquareAppTile> _tiles = new List<SquareAppTile>();
@@ -897,12 +1395,13 @@ namespace NillyHub
         private bool _checking = false;
         private Bitmap _hubLogoBmp;
 
+        private Label _suiteBar;
         private Panel _header;
         private Label _lblTitle, _lblCount;
         private TextBox _txtSearch;
         private Button _btnFAll, _btnFInst, _btnFUpd, _btnCheck, _btnSuiteAll, _btnWinSwap, _btnTheme;
 
-        private FlowLayoutPanel _grid;
+        private DoubleBufferedFlowPanel _grid;
         private Panel _footer;
         private Label _lblStatus, _lblCredit;
 
@@ -913,9 +1412,12 @@ namespace NillyHub
             for (int i = 0; i < _apps.Count; i++) SuiteCatalog.RefreshLocalState(_apps[i], _suiteRoot);
 
             Text = "NillyHub — Nilly graphics";
-            Size = new Size(1012, 538);
-            MinimumSize = new Size(420, 380);
+            int maxH = 744;
+            try { maxH = Math.Min(744, Math.Max(520, Screen.PrimaryScreen.WorkingArea.Height - 40)); } catch { }
+            Size = new Size(1018, maxH);
+            MinimumSize = new Size(440, 400);
             StartPosition = FormStartPosition.CenterScreen;
+            KeyPreview = true;
 
             string icoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "NillyHub.ico");
             try
@@ -924,64 +1426,107 @@ namespace NillyHub
                 else Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             }
             catch { }
-            _hubLogoBmp = IconLoader.LoadCrispIcon(icoPath, 32) ?? IconLoader.DrawPlaceholderIcon("NillyHub", Color.FromArgb(252, 150, 31), 32);
+            _hubLogoBmp = IconLoader.LoadCrispIcon(icoPath, 32) ?? IconLoader.DrawPlaceholderIcon("hub", "NillyHub", Color.FromArgb(252, 150, 31), 32);
 
             BuildUi();
-            RebuildTiles();
+            CreateTilesOnce();
+            LoadInstantCache();
+            ApplyFilters();
             ApplyTheme();
 
-            if (!smokeMode) Shown += delegate { CheckGitHubUpdatesAsync(); };
+            if (!smokeMode)
+            {
+                Shown += delegate
+                {
+                    Native.SetCueBanner(_txtSearch, "Αναζήτηση… (Ctrl+F)");
+                    CheckGitHubUpdatesAsync(false);
+                    Native.TrimWorkingSet();
+                };
+            }
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.Control && e.KeyCode == Keys.F)
+            {
+                _txtSearch.Focus();
+                _txtSearch.SelectAll();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                return;
+            }
+            if (e.KeyCode == Keys.Escape && (!string.IsNullOrEmpty(_txtSearch.Text) || _filterMode != "all"))
+            {
+                _txtSearch.Text = "";
+                _filterMode = "all";
+                StylePills();
+                ApplyFilters();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                return;
+            }
+            base.OnKeyDown(e);
         }
 
         private void BuildUi()
         {
-            // Single Ultra-Clean Top Header Bar (properly docked -> zero button clipping!)
+            // Top Info Banner (docked at the very top: y = 0..28)
+            _suiteBar = new Label
+            {
+                Dock = DockStyle.Top, Height = 28, TextAlign = ContentAlignment.MiddleCenter,
+                Font = FontBanner, UseMnemonic = false,
+                Text = "Προεπιλογές Windows › Nilly Suite · 11 εργαλεία · 1,24 MiB ZIP · 0 € · MIT",
+                AccessibleName = "Σύγκριση σουίτας",
+                AccessibleDescription = "Συνολικό μέγεθος των 11 φορητών ZIP της Nilly Suite v1.2."
+            };
+
+            // Main Header Bar (docked cleanly directly below _suiteBar: y = 28..82)
             _header = new Panel { Dock = DockStyle.Top, Height = 54, Padding = new Padding(14, 10, 14, 10) };
 
             Panel leftBrand = new Panel { Dock = DockStyle.Left, Width = 175 };
             PictureBox picLogo = new PictureBox { Left = 0, Top = 1, Width = 32, Height = 32, Image = _hubLogoBmp, SizeMode = PictureBoxSizeMode.Zoom };
-            _lblTitle = new Label { Left = 40, Top = 0, Width = 130, Height = 20, Font = new Font("Segoe UI", 11.5f, FontStyle.Bold), Text = "NillyHub", UseMnemonic = false };
-            _lblCount = new Label { Left = 41, Top = 20, Width = 130, Height = 14, Font = new Font("Segoe UI", 7.8f), Text = "Nilly graphics Suite", UseMnemonic = false };
+            _lblTitle = new Label { Left = 40, Top = 0, Width = 130, Height = 20, Font = FontBrand, Text = "NillyHub", UseMnemonic = false };
+            _lblCount = new Label { Left = 41, Top = 20, Width = 134, Height = 14, Font = FontSub, Text = "Nilly graphics Suite", UseMnemonic = false };
             leftBrand.Controls.AddRange(new Control[] { picLogo, _lblTitle, _lblCount });
 
             FlowLayoutPanel rightBar = new FlowLayoutPanel
             {
-                Dock = DockStyle.Right, Width = 768, FlowDirection = FlowDirection.RightToLeft,
+                Dock = DockStyle.Right, Width = 804, FlowDirection = FlowDirection.RightToLeft,
                 WrapContents = false, Padding = new Padding(0, 3, 0, 0)
             };
 
             _btnTheme = MkPill("☀", 30, delegate { _dark = !_dark; ApplyTheme(); });
             _btnWinSwap = MkPill("⇄ Windows", 92, delegate { OpenWindowsSwitchWizard(); });
             _btnSuiteAll = MkPill("↓ Όλη η Σουίτα", 112, delegate { InstallOrUpdateFullSuite(); });
-            _btnCheck = MkPill("↻ Sync", 62, delegate { CheckGitHubUpdatesAsync(); });
+            _btnCheck = MkPill("↻ Sync", 62, delegate { CheckGitHubUpdatesAsync(true); });
 
-            _txtSearch = new TextBox { Width = 128, Height = 26, BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 9f), Margin = new Padding(4, 2, 4, 0) };
-            _txtSearch.TextChanged += delegate { RebuildTiles(); };
+            _txtSearch = new TextBox { Width = 128, Height = 26, BorderStyle = BorderStyle.FixedSingle, Font = FontInput, Margin = new Padding(4, 2, 4, 0) };
+            _txtSearch.TextChanged += delegate { ApplyFilters(); };
 
-            _btnFUpd = MkPill("Updates", 76, delegate { _filterMode = "updates"; RebuildTiles(); StylePills(); });
-            _btnFInst = MkPill("Τοπικά", 74, delegate { _filterMode = "installed"; RebuildTiles(); StylePills(); });
-            _btnFAll = MkPill("Όλα", 64, delegate { _filterMode = "all"; RebuildTiles(); StylePills(); });
+            _btnFUpd = MkPill("Updates", 82, delegate { _filterMode = "updates"; ApplyFilters(); StylePills(); });
+            _btnFInst = MkPill("Τοπικά", 86, delegate { _filterMode = "installed"; ApplyFilters(); StylePills(); });
+            _btnFAll = MkPill("Όλα", 74, delegate { _filterMode = "all"; ApplyFilters(); StylePills(); });
 
-            _sharedTip.SetToolTip(_btnCheck, "Έλεγχος ενημερώσεων από github.com/nillynp");
+            _sharedTip.SetToolTip(_btnCheck, "Έλεγχος ενημερώσεων από github.com/nillynp (ETag cache)");
             _sharedTip.SetToolTip(_btnSuiteAll, "Λήψη & Ενημέρωση όλων των εργαλείων της Σουίτας μαζί (1 κλικ)");
-            _sharedTip.SetToolTip(_btnWinSwap, "Ασφαλής αντικατάσταση εφαρμογών Windows (Notepad, Calc, Photos, Snipping Tool, Media Player)");
+            _sharedTip.SetToolTip(_btnWinSwap, "Ασφαλής αντικατάσταση εφαρμογών Windows (Προεπιλογές & Πρόχειρο)");
             _sharedTip.SetToolTip(_btnTheme, "Εναλλαγή Dark / Light");
-            _sharedTip.SetToolTip(_txtSearch, "Αναζήτηση εργαλείου...");
+            _sharedTip.SetToolTip(_txtSearch, "Αναζήτηση εργαλείου (Ctrl+F)...");
 
             rightBar.Controls.AddRange(new Control[] { _btnTheme, _btnWinSwap, _btnSuiteAll, _btnCheck, _txtSearch, _btnFUpd, _btnFInst, _btnFAll });
             _header.Controls.Add(rightBar);
             _header.Controls.Add(leftBrand);
 
-            // Minimal Footer
+            // Minimal Footer (docked at bottom)
             _footer = new Panel { Dock = DockStyle.Bottom, Height = 26, Padding = new Padding(14, 0, 14, 0) };
-            _lblStatus = new Label { Dock = DockStyle.Left, Width = 460, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 8.2f), UseMnemonic = false, Text = "Έτοιμο" };
-            _lblCredit = new Label { Dock = DockStyle.Right, Width = 360, TextAlign = ContentAlignment.MiddleRight, Font = new Font("Segoe UI", 8.2f), Cursor = Cursors.Hand, UseMnemonic = false, Text = "created by Nilly graphics (Sotiris Christos) · nillygraphics.com" };
+            _lblStatus = new Label { Dock = DockStyle.Left, Width = 500, TextAlign = ContentAlignment.MiddleLeft, Font = FontFooter, UseMnemonic = false, Text = "Έτοιμο" };
+            _lblCredit = new Label { Dock = DockStyle.Right, Width = 360, TextAlign = ContentAlignment.MiddleRight, Font = FontFooter, Cursor = Cursors.Hand, UseMnemonic = false, Text = "created by Nilly graphics (Sotiris Christos) · nillygraphics.com" };
             _lblCredit.Click += delegate { try { Process.Start(new ProcessStartInfo("https://nillygraphics.com/") { UseShellExecute = true }); } catch { } };
             _footer.Controls.Add(_lblStatus);
             _footer.Controls.Add(_lblCredit);
 
-            // Minimal Centered 5x2 Square Grid
-            _grid = new FlowLayoutPanel
+            // Flicker-free Double-Buffered Square Grid (docked Fill — MUST be z-index 0 so NOTHING clips Row 1!)
+            _grid = new DoubleBufferedFlowPanel
             {
                 Dock = DockStyle.Fill,
                 AutoScroll = true,
@@ -989,17 +1534,44 @@ namespace NillyHub
                 Padding = new Padding(18, 14, 14, 14)
             };
 
+            // CRITICAL WinForms Docking Order: back-to-front!
+            // _suiteBar (backmost, docked 1st at y=0) -> _header (docked 2nd at y=28) -> _footer (bottom) -> _grid (frontmost z=0, Fill between header & footer!)
             Controls.Add(_grid);
-            Controls.Add(_header);
-            Label suiteBar = new Label {
-                Dock = DockStyle.Top, Height = 32, TextAlign = ContentAlignment.MiddleCenter,
-                BackColor = Color.FromArgb(43, 30, 18), ForeColor = Color.FromArgb(255, 185, 95),
-                Text = "Προεπιλογές Windows › Nilly Suite · 11 εργαλεία · 1,22 MiB ZIP · 0 € · MIT", AccessibleName = "Σύγκριση σουίτας", AccessibleDescription = "Συνολικό μέγεθος των 11 φορητών ZIP κατά την προετοιμασία της έκδοσης 1.1."
-            };
-            Controls.Add(suiteBar);
-            suiteBar.BringToFront();
-            _header.BringToFront();
             Controls.Add(_footer);
+            Controls.Add(_header);
+            Controls.Add(_suiteBar);
+        }
+
+        private void CreateTilesOnce()
+        {
+            _grid.SuspendLayout();
+            for (int i = 0; i < _apps.Count; i++)
+            {
+                SquareAppTile tile = new SquareAppTile(_apps[i], _sharedTip);
+                tile.LaunchClicked += OnLaunchApp;
+                tile.UpdateClicked += OnInstallOrUpdateApp;
+                tile.FolderClicked += delegate(SuiteApp ap)
+                {
+                    if (!string.IsNullOrEmpty(ap.LocalDir) && Directory.Exists(ap.LocalDir))
+                        try { Process.Start("explorer.exe", "\"" + ap.LocalDir + "\""); } catch { }
+                };
+                tile.SiteClicked += delegate(SuiteApp ap)
+                {
+                    string u = !string.IsNullOrEmpty(ap.RemoteHomepage) ? ap.RemoteHomepage :
+                               (!string.IsNullOrEmpty(ap.SiteUrl) ? ap.SiteUrl : ("https://github.com/" + GitHubClient.OWNER + "/" + ap.RepoName));
+                    try { Process.Start(new ProcessStartInfo(u) { UseShellExecute = true }); } catch { }
+                };
+                _tiles.Add(tile);
+                _grid.Controls.Add(tile);
+            }
+            _grid.ResumeLayout(true);
+        }
+
+        private void LoadInstantCache()
+        {
+            List<GitHubRepoInfo> cached = GitHubClient.LoadCachedRepos(_suiteRoot);
+            if (cached != null && cached.Count > 0)
+                ApplyRepoListToApps(cached, false);
         }
 
         private static Button MkPill(string txt, int w, EventHandler onClick)
@@ -1008,7 +1580,7 @@ namespace NillyHub
             b.UseMnemonic = false;
             b.Text = txt; b.Width = w; b.Height = 26;
             b.FlatStyle = FlatStyle.Flat; b.FlatAppearance.BorderSize = 1;
-            b.Font = new Font("Segoe UI", 8.3f, FontStyle.Bold);
+            b.Font = FontPill;
             b.Cursor = Cursors.Hand; b.TabStop = false;
             b.Margin = new Padding(3, 1, 3, 0);
             b.Click += onClick;
@@ -1030,6 +1602,8 @@ namespace NillyHub
             _grid.BackColor = bgMain;
             _header.BackColor = bgTop;
             _footer.BackColor = bgTop;
+            _suiteBar.BackColor = _dark ? Color.FromArgb(40, 29, 18) : Color.FromArgb(254, 243, 226);
+            _suiteBar.ForeColor = _dark ? Color.FromArgb(255, 185, 95) : Color.FromArgb(146, 64, 14);
             _lblTitle.ForeColor = fgMain;
             _lblCount.ForeColor = fgMuted;
             _lblStatus.ForeColor = fgMuted;
@@ -1050,7 +1624,6 @@ namespace NillyHub
             Color orange = Color.FromArgb(252, 150, 31);
             Color cyan = Color.FromArgb(102, 217, 239);
             Color btnBg = _dark ? Color.FromArgb(36, 39, 46) : Color.FromArgb(236, 240, 246);
-            Color fgMuted = _dark ? Color.FromArgb(120, 128, 142) : Color.Gray;
             Color border = _dark ? Color.FromArgb(52, 56, 66) : Color.FromArgb(214, 220, 228);
 
             int missing = 0, upd = 0;
@@ -1103,48 +1676,33 @@ namespace NillyHub
             b.FlatAppearance.BorderColor = active ? accent : border;
         }
 
-        private void RebuildTiles()
+        // Zero-allocation instant visibility filter (no Win32 control churn, no icon reload!)
+        private void ApplyFilters()
         {
-            _grid.SuspendLayout();
-            for (int i = 0; i < _tiles.Count; i++) _tiles[i].Dispose();
-            _tiles.Clear();
-            _grid.Controls.Clear();
-
             string q = (_txtSearch.Text ?? "").Trim();
             int inst = 0, upd = 0;
-            for (int i = 0; i < _apps.Count; i++)
+
+            _grid.SuspendLayout();
+            for (int i = 0; i < _tiles.Count; i++)
             {
-                SuiteApp a = _apps[i];
+                SquareAppTile tile = _tiles[i];
+                SuiteApp a = tile.App;
                 if (a.IsInstalled) inst++;
                 if (a.HasUpdate) upd++;
 
-                if (_filterMode == "installed" && !a.IsInstalled) continue;
-                if (_filterMode == "updates" && !a.HasUpdate) continue;
-                if (q.Length > 0 &&
-                    a.DisplayName.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0 &&
-                    a.ShortTag.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0 &&
-                    a.Description.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0)
-                    continue;
+                bool show = true;
+                if (_filterMode == "installed" && !a.IsInstalled) show = false;
+                else if (_filterMode == "updates" && !a.HasUpdate) show = false;
+                else if (q.Length > 0 &&
+                         a.DisplayName.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0 &&
+                         a.ShortTag.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0 &&
+                         a.Description.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0)
+                    show = false;
 
-                SquareAppTile tile = new SquareAppTile(a, _sharedTip);
-                tile.LaunchClicked += OnLaunchApp;
-                tile.UpdateClicked += OnInstallOrUpdateApp;
-                tile.FolderClicked += delegate(SuiteApp ap)
-                {
-                    if (!string.IsNullOrEmpty(ap.LocalDir) && Directory.Exists(ap.LocalDir))
-                        try { Process.Start("explorer.exe", "\"" + ap.LocalDir + "\""); } catch { }
-                };
-                tile.SiteClicked += delegate(SuiteApp ap)
-                {
-                    string u = !string.IsNullOrEmpty(ap.RemoteHomepage) ? ap.RemoteHomepage :
-                               (!string.IsNullOrEmpty(ap.SiteUrl) ? ap.SiteUrl : ("https://github.com/" + GitHubClient.OWNER + "/" + ap.RepoName));
-                    try { Process.Start(new ProcessStartInfo(u) { UseShellExecute = true }); } catch { }
-                };
+                if (tile.Visible != show) tile.Visible = show;
                 tile.RefreshTile(_dark);
-                _tiles.Add(tile);
-                _grid.Controls.Add(tile);
             }
-            _grid.ResumeLayout();
+            _grid.ResumeLayout(true);
 
             _lblCount.Text = inst + "/" + _apps.Count + " εγκατεστημένα";
             _btnFAll.Text = "Όλα (" + _apps.Count + ")";
@@ -1176,7 +1734,7 @@ namespace NillyHub
             }
         }
 
-        private void CheckGitHubUpdatesAsync()
+        private void CheckGitHubUpdatesAsync(bool forceManual)
         {
             if (_checking) return;
             _checking = true;
@@ -1187,7 +1745,8 @@ namespace NillyHub
             {
                 List<GitHubRepoInfo> repos = null;
                 string err = null;
-                try { repos = GitHubClient.FetchAllOwnerRepos(); }
+                string src = "live";
+                try { repos = GitHubClient.FetchAllOwnerReposCached(_suiteRoot, !forceManual, out src); }
                 catch (Exception ex) { err = ex.Message; }
                 try
                 {
@@ -1195,8 +1754,18 @@ namespace NillyHub
                     {
                         _checking = false;
                         _btnCheck.Enabled = true;
-                        if (err != null) { _lblStatus.Text = "Offline (" + err + ")"; return; }
-                        MergeGitHubRepos(repos);
+                        if (err != null)
+                        {
+                            _lblStatus.Text = "Offline (" + err + ")";
+                            return;
+                        }
+                        ApplyRepoListToApps(repos, true);
+                        int upd = 0, gh = 0;
+                        for (int i = 0; i < _apps.Count; i++) { if (_apps[i].HasUpdate) upd++; if (_apps[i].FoundOnGitHub) gh++; }
+                        string suffix = src == "cached" ? " · ETag 304" : "";
+                        _lblStatus.Text = string.Format("github.com/{0} ({1} repos) · {2}{3}",
+                            GitHubClient.OWNER, gh, upd > 0 ? (upd + " ενημερώσεις διαθέσιμες") : "Όλα ενημερωμένα", suffix);
+                        Native.TrimWorkingSet();
                     });
                 }
                 catch { }
@@ -1205,7 +1774,7 @@ namespace NillyHub
             th.Start();
         }
 
-        private void MergeGitHubRepos(List<GitHubRepoInfo> repos)
+        private void ApplyRepoListToApps(List<GitHubRepoInfo> repos, bool updateUi)
         {
             if (repos == null) return;
             Dictionary<string, GitHubRepoInfo> map = new Dictionary<string, GitHubRepoInfo>(StringComparer.OrdinalIgnoreCase);
@@ -1222,16 +1791,11 @@ namespace NillyHub
                     a.RemotePushedUtc = ri.PushedAtUtc;
                     a.RemotePushedRaw = ri.PushedAtRaw;
                     if (!string.IsNullOrEmpty(ri.Homepage)) a.RemoteHomepage = ri.Homepage;
-                    map.Remove(a.RepoName);
                 }
                 SuiteCatalog.RefreshLocalState(a, _suiteRoot);
             }
 
-            RebuildTiles();
-            int upd = 0, gh = 0;
-            for (int i = 0; i < _apps.Count; i++) { if (_apps[i].HasUpdate) upd++; if (_apps[i].FoundOnGitHub) gh++; }
-            _lblStatus.Text = string.Format("github.com/{0} ({1} repos) · {2}",
-                GitHubClient.OWNER, gh, upd > 0 ? (upd + " ενημερώσεις διαθέσιμες") : "Όλα ενημερωμένα");
+            if (updateUi) ApplyFilters();
         }
 
         private void OnInstallOrUpdateApp(SuiteApp app)
@@ -1256,13 +1820,14 @@ namespace NillyHub
                     {
                         app.Busy = false;
                         SuiteCatalog.RefreshLocalState(app, _suiteRoot);
-                        RebuildTiles();
+                        ApplyFilters();
                         if (err != null)
                         {
                             _lblStatus.Text = "Σφάλμα: " + app.DisplayName;
                             MessageBox.Show(this, "Αδυναμία ενημέρωσης " + app.DisplayName + ":\r\n" + err, "NillyHub", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         }
                         else _lblStatus.Text = "✓ Έτοιμο & ενημερωμένο: " + app.DisplayName;
+                        Native.TrimWorkingSet();
                     });
                 }
                 catch { }
@@ -1287,7 +1852,7 @@ namespace NillyHub
             }
 
             DialogResult dr = MessageBox.Show(this,
-                "Λήψη & εγκατάσταση/ενημέρωση " + queue.Count + " εργαλείων της Nilly Suite από το github.com/nillynp;\r\n(100% Δωρεάν · Zero Admin · Αυτόματη μεταγλώττιση)",
+                "Λήψη & εγκατάσταση/ενημέρωση " + queue.Count + " εργαλείων της Nilly Suite από το github.com/nillynp;\r\n(100% Δωρεάν · Zero Admin · SHA-256 Επαλήθευση)",
                 "Εγκατάσταση Όλης της Σουίτας — NillyHub", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (dr != DialogResult.Yes) return;
 
@@ -1295,6 +1860,7 @@ namespace NillyHub
             Thread th = new Thread(delegate()
             {
                 int ok = 0;
+                List<string> failed = new List<string>();
                 for (int i = 0; i < queue.Count; i++)
                 {
                     SuiteApp a = queue[i];
@@ -1308,7 +1874,10 @@ namespace NillyHub
                         });
                         ok++;
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        failed.Add(a.DisplayName + ": " + ex.Message);
+                    }
                     a.Busy = false;
                     SuiteCatalog.RefreshLocalState(a, _suiteRoot);
                 }
@@ -1316,8 +1885,15 @@ namespace NillyHub
                 {
                     BeginInvoke((Action)delegate
                     {
-                        RebuildTiles();
+                        ApplyFilters();
                         _lblStatus.Text = string.Format("✓ Ολοκληρώθηκε η Σουίτα ({0}/{1} εργαλεία έτοιμα)!", ok, queue.Count);
+                        if (failed.Count > 0)
+                        {
+                            MessageBox.Show(this,
+                                "Ολοκληρώθηκαν " + ok + "/" + queue.Count + " εργαλεία.\r\n\r\nΑποτυχίες:\r\n• " + string.Join("\r\n• ", failed.ToArray()),
+                                "NillyHub — Αναφορά Σουίτας", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                        Native.TrimWorkingSet();
                     });
                 }
                 catch { }
@@ -1360,16 +1936,24 @@ namespace NillyHub
             {
                 if (!createdNew)
                 {
-                    Process[] ps = Process.GetProcessesByName(Process.GetCurrentProcess().ProcessName);
-                    int myId = Process.GetCurrentProcess().Id;
-                    for (int i = 0; i < ps.Length; i++)
+                    Process self = Process.GetCurrentProcess();
+                    Process[] ps = Process.GetProcessesByName(self.ProcessName);
+                    int myId = self.Id;
+                    try
                     {
-                        if (ps[i].Id != myId && ps[i].MainWindowHandle != IntPtr.Zero)
+                        for (int i = 0; i < ps.Length; i++)
                         {
-                            Native.ShowWindow(ps[i].MainWindowHandle, Native.SW_RESTORE);
-                            Native.SetForegroundWindow(ps[i].MainWindowHandle);
-                            break;
+                            if (ps[i].Id != myId && ps[i].MainWindowHandle != IntPtr.Zero)
+                            {
+                                Native.ShowWindow(ps[i].MainWindowHandle, Native.SW_RESTORE);
+                                Native.SetForegroundWindow(ps[i].MainWindowHandle);
+                                break;
+                            }
                         }
+                    }
+                    finally
+                    {
+                        for (int i = 0; i < ps.Length; i++) ps[i].Dispose();
                     }
                     return 0;
                 }
@@ -1404,6 +1988,7 @@ namespace NillyHub
                 {
                     f.Show();
                     Application.DoEvents();
+                    Native.TrimWorkingSet();
                     if (!string.IsNullOrEmpty(previewPngPath))
                     {
                         using (Bitmap shot = new Bitmap(f.Width, f.Height))
