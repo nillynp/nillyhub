@@ -1,7 +1,6 @@
 # NillyHub — Nilly Suite για Windows 10/11
 
-> Windows QA candidate. A public release will follow after Windows 10/11 validation.
-> Δοκιμαστική έκδοση. Εκκρεμεί επαλήθευση σε Windows 10/11 πριν από τη δημόσια λήψη.
+**[Δημόσια έκδοση v1.1 · Public release](https://github.com/nillynp/nillyhub/releases/tag/v1.1)**
 
 Δωρεάν launcher για 11 εργαλεία της Nilly graphics, με άδεια MIT.
 
