@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.5.0.0")]
-[assembly: AssemblyFileVersion("1.5.0.0")]
+[assembly: AssemblyVersion("1.6.0.0")]
+[assembly: AssemblyFileVersion("1.6.0.0")]
 
 namespace NillyHub
 {
@@ -397,6 +397,12 @@ namespace NillyHub
                         }
                         g.DrawRectangle(p, cx - u * 0.22f, cy + u * 0.36f, u * 0.44f, u * 0.44f);
                     }
+                    else if (appId == "nillysearch")
+                    {
+                        float r = u * 0.56f;
+                        g.DrawEllipse(p, cx - u * 0.72f, cy - u * 0.72f, r * 2f, r * 2f);
+                        g.DrawLine(p, cx + u * 0.20f, cy + u * 0.20f, cx + u * 0.76f, cy + u * 0.76f);
+                    }
                     else if (appId == "hub")
                     {
                         // Always-crisp 4-square NillyHub emblem (even when NillyHub.exe runs solo without .ico!)
@@ -476,6 +482,15 @@ namespace NillyHub
         public string RemoteHomepage;
         public bool HasUpdate;
         public bool Busy;
+
+        // Windows Default vs Nilly resource comparison fields (for ⓘ Info dialog)
+        public string Replaces;
+        public string DiskNilly;
+        public string DiskWin;
+        public string RamNilly;
+        public string RamWin;
+        public string CpuGpuNilly;
+        public string CpuGpuWin;
     }
 
     internal sealed class GitHubRepoInfo
@@ -508,7 +523,7 @@ namespace NillyHub
         {
             newEtag = etag;
             HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
-            req.UserAgent = "NillyHub/1.5 (https://nillygraphics.com/)";
+            req.UserAgent = "NillyHub/1.6 (https://nillygraphics.com/)";
             req.Accept = "application/vnd.github+json";
             req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
             req.Timeout = 12000;
@@ -669,6 +684,51 @@ namespace NillyHub
             return json;
         }
 
+        public static string GetCachedIconPath(string suiteRoot, string repoName)
+        {
+            if (string.IsNullOrEmpty(suiteRoot) || string.IsNullOrEmpty(repoName)) return null;
+            return Path.Combine(suiteRoot, ".iconcache", repoName + ".ico");
+        }
+
+        public static bool EnsureRemoteIconCached(SuiteApp app, string suiteRoot)
+        {
+            if (app == null || string.IsNullOrEmpty(app.RepoName) || string.IsNullOrEmpty(app.IconFile) || string.IsNullOrEmpty(suiteRoot))
+                return false;
+            try
+            {
+                string cacheDir = Path.Combine(suiteRoot, ".iconcache");
+                Directory.CreateDirectory(cacheDir);
+                string dst = Path.Combine(cacheDir, app.RepoName + ".ico");
+                if (File.Exists(dst) && new FileInfo(dst).Length > 100) return false;
+
+                string branch = string.IsNullOrEmpty(app.DefaultBranch) ? "main" : app.DefaultBranch;
+                string url = "https://raw.githubusercontent.com/" + OWNER + "/" + app.RepoName + "/" + branch + "/" + app.IconFile;
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+                req.UserAgent = "NillyHub/1.6 (https://nillygraphics.com/)";
+                req.Timeout = 8000;
+                req.ReadWriteTimeout = 8000;
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                using (Stream s = resp.GetResponseStream())
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    byte[] buf = new byte[8192];
+                    int n;
+                    while ((n = s.Read(buf, 0, buf.Length)) > 0)
+                    {
+                        ms.Write(buf, 0, n);
+                        if (ms.Length > 256 * 1024) return false;
+                    }
+                    byte[] bytes = ms.ToArray();
+                    // Verify genuine ICO header (00 00 01 00)
+                    if (bytes.Length < 64 || bytes[0] != 0 || bytes[1] != 0 || bytes[2] != 1 || bytes[3] != 0)
+                        return false;
+                    File.WriteAllBytes(dst, bytes);
+                    return true;
+                }
+            }
+            catch { return false; }
+        }
+
         public static string LoadCachedCatalogJson(string suiteRoot)
         {
             try
@@ -777,7 +837,7 @@ namespace NillyHub
         public static void DownloadVerifiedZip(string url, string destination, string expectedHash, long expectedBytes)
         {
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-            request.UserAgent = "NillyHub/1.5 (https://nillygraphics.com/)";
+            request.UserAgent = "NillyHub/1.6 (https://nillygraphics.com/)";
             request.Timeout = 18000;
             request.ReadWriteTimeout = 18000;
             using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
@@ -886,17 +946,37 @@ namespace NillyHub
                         site = "https://nillygraphics.com/";
 
                     GitHubClient.RegisterDynamicPrefix(repo, prefix);
-                    if (existingRepos.Contains(repo)) continue;
+                    SuiteApp targetApp = null;
+                    for (int k = 0; k < apps.Count; k++)
+                        if (apps[k].RepoName.Equals(repo, StringComparison.OrdinalIgnoreCase)) { targetApp = apps[k]; break; }
 
-                    SuiteApp app = Make(id, name, tag, desc, folder, launch, proc, icon, repo, site, ParseHexColor(accentHex, Color.FromArgb(102, 217, 239)));
-                    if (!string.IsNullOrEmpty(suiteRoot)) RefreshLocalState(app, suiteRoot);
-                    apps.Add(app);
-                    existingRepos.Add(repo);
-                    addedAny = true;
+                    if (targetApp == null)
+                    {
+                        targetApp = Make(id, name, tag, desc, folder, launch, proc, icon, repo, site, ParseHexColor(accentHex, Color.FromArgb(102, 217, 239)));
+                        if (!string.IsNullOrEmpty(suiteRoot)) RefreshLocalState(targetApp, suiteRoot);
+                        apps.Add(targetApp);
+                        existingRepos.Add(repo);
+                        addedAny = true;
+                    }
+                    // Populate rich resource comparison fields for BOTH existing & newly discovered apps!
+                    ApplyCompareStrings(targetApp,
+                        JStr(o, "replaces"), JStr(o, "diskNilly"), JStr(o, "diskWin"),
+                        JStr(o, "ramNilly"), JStr(o, "ramWin"), JStr(o, "cpuGpuNilly"), JStr(o, "cpuGpuWin"));
                 }
             }
             catch { }
             return addedAny;
+        }
+
+        private static void ApplyCompareStrings(SuiteApp a, string rep, string dn, string dw, string rn, string rw, string cn, string cw)
+        {
+            if (!string.IsNullOrEmpty(rep)) a.Replaces = rep;
+            if (!string.IsNullOrEmpty(dn))  a.DiskNilly = dn;
+            if (!string.IsNullOrEmpty(dw))  a.DiskWin = dw;
+            if (!string.IsNullOrEmpty(rn))  a.RamNilly = rn;
+            if (!string.IsNullOrEmpty(rw))  a.RamWin = rw;
+            if (!string.IsNullOrEmpty(cn))  a.CpuGpuNilly = cn;
+            if (!string.IsNullOrEmpty(cw))  a.CpuGpuWin = cw;
         }
 
         private static string JStr(Dictionary<string, object> o, string key)
@@ -1275,14 +1355,15 @@ namespace NillyHub
         public event Action<SuiteApp> UpdateClicked;
         public event Action<SuiteApp> FolderClicked;
         public event Action<SuiteApp> SiteClicked;
+        public event Action<SuiteApp> InfoClicked;
         public event Action<SuiteApp> UninstallClicked;
 
         private bool _dark = true;
         private bool _tileHover = false;
-        private int _hoverIconIdx = -1; // 0=Open/Install, 1=Update, 2=Folder, 3=Web
+        private int _hoverIconIdx = -1; // 0=Open/Install, 1=Update, 2=Folder, 3=Web, 4=Info/Compare
         private Bitmap _iconBmp;
         private string _cachedIconKey;
-        private readonly Rectangle[] _btnRects = new Rectangle[4];
+        private readonly Rectangle[] _btnRects = new Rectangle[5];
         private readonly ToolTip _tip;
         private int _lastTipZone = -99;
 
@@ -1299,12 +1380,12 @@ namespace NillyHub
             Margin = new Padding(8);
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
 
-            int btnSz = 26;
-            int gap = 8;
-            int totalW = 4 * btnSz + 3 * gap;
+            int btnSz = 24;
+            int gap = 6;
+            int totalW = 5 * btnSz + 4 * gap;
             int bx = (Width - totalW) / 2;
-            int by = Height - 38;
-            for (int i = 0; i < 4; i++)
+            int by = Height - 37;
+            for (int i = 0; i < 5; i++)
                 _btnRects[i] = new Rectangle(bx + i * (btnSz + gap), by, btnSz, btnSz);
 
             EnsureIconLoaded();
@@ -1322,6 +1403,11 @@ namespace NillyHub
             string icoPath = (!string.IsNullOrEmpty(App.LocalDir) && !string.IsNullOrEmpty(App.IconFile))
                 ? Path.Combine(App.LocalDir, App.IconFile)
                 : "";
+            if (string.IsNullOrEmpty(icoPath) || !File.Exists(icoPath))
+            {
+                string cached = GitHubClient.GetCachedIconPath(SuiteCatalog.DetectSuiteRoot(), App.RepoName);
+                if (!string.IsNullOrEmpty(cached) && File.Exists(cached)) icoPath = cached;
+            }
             string key = "placeholder:" + App.Id;
             if (!string.IsNullOrEmpty(icoPath) && File.Exists(icoPath))
             {
@@ -1417,6 +1503,10 @@ namespace NillyHub
             DrawMiniIconBtn(g, 3, "link",
                 true,
                 fgMuted);
+
+            DrawMiniIconBtn(g, 4, "info",
+                true,
+                Color.FromArgb(102, 217, 239));
         }
 
         private void DrawTinyPill(Graphics g, string text, Color bg, Color fg)
@@ -1483,12 +1573,18 @@ namespace NillyHub
                     g.DrawLine(p, cx - 0.5f, cy - 4f, cx + 4f, cy - 4f);
                     g.DrawLine(p, cx + 4f, cy - 4f, cx + 4f, cy + 0.5f);
                 }
+                else if (kind == "info")
+                {
+                    g.DrawEllipse(p, cx - 5.5f, cy - 5.5f, 11f, 11f);
+                    g.FillEllipse(br, cx - 1.0f, cy - 3.6f, 2.0f, 2.0f);
+                    g.DrawLine(p, cx, cy - 0.6f, cx, cy + 3.2f);
+                }
             }
         }
 
         private int HitTestBtn(Point pt)
         {
-            for (int i = 0; i < 4; i++) if (_btnRects[i].Contains(pt)) return i;
+            for (int i = 0; i < 5; i++) if (_btnRects[i].Contains(pt)) return i;
             return -1;
         }
 
@@ -1509,6 +1605,7 @@ namespace NillyHub
                 else if (bi == 1) _tip.SetToolTip(this, App.HasUpdate ? "Διαθέσιμη ενημέρωση από GitHub — κλικ για Update" : "Έλεγχος / Ενημέρωση από GitHub");
                 else if (bi == 2) _tip.SetToolTip(this, App.IsInstalled ? ("Άνοιγμα φακέλου: " + App.LocalDir) : "Άνοιγμα τοπικού φακέλου");
                 else if (bi == 3) _tip.SetToolTip(this, "Άνοιγμα στο nillygraphics.com / GitHub");
+                else if (bi == 4) _tip.SetToolTip(this, "ⓘ Σύγκριση με Windows Default (RAM, Δίσκος, CPU & GPU)");
                 else
                 {
                     string sz = App.IsInstalled ? (Math.Max(1, App.LocalExeBytes / 1024) + " KB · " + App.LocalDir) : "Μη εγκατεστημένο";
@@ -1539,6 +1636,7 @@ namespace NillyHub
             if (bi == 1) { if (App.FoundOnGitHub && UpdateClicked != null) UpdateClicked(App); }
             else if (bi == 2) { if (App.IsInstalled && FolderClicked != null) FolderClicked(App); }
             else if (bi == 3) { if (SiteClicked != null) SiteClicked(App); }
+            else if (bi == 4) { if (InfoClicked != null) InfoClicked(App); }
             else
             {
                 if (App.IsInstalled) { if (LaunchClicked != null) LaunchClicked(App); }
@@ -1573,6 +1671,10 @@ namespace NillyHub
             miWeb.Click += delegate { if (SiteClicked != null) SiteClicked(App); };
             cms.Items.Add(miWeb);
 
+            ToolStripMenuItem miInfo = new ToolStripMenuItem("ⓘ  Σύγκριση με Windows (RAM, Δίσκος, CPU/GPU)");
+            miInfo.Click += delegate { if (InfoClicked != null) InfoClicked(App); };
+            cms.Items.Add(miInfo);
+
             if (App.IsInstalled)
             {
                 cms.Items.Add(new ToolStripSeparator());
@@ -1583,6 +1685,134 @@ namespace NillyHub
             }
             cms.Closed += delegate { cms.Dispose(); };
             cms.Show(this, loc);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && _iconBmp != null) { _iconBmp.Dispose(); _iconBmp = null; }
+            base.Dispose(disposing);
+        }
+    }
+
+    // ========================================================================
+    // APP RESOURCE COMPARISON DIALOG (ⓘ Nilly Suite vs Windows / Heavy Apps)
+    // ========================================================================
+    internal sealed class AppCompareDialog : Form
+    {
+        private static readonly Font FTitle = new Font("Segoe UI", 12.5f, FontStyle.Bold);
+        private static readonly Font FSub = new Font("Segoe UI", 8.8f);
+        private static readonly Font FHdr = new Font("Segoe UI", 8.6f, FontStyle.Bold);
+        private static readonly Font FCell = new Font("Segoe UI", 8.8f);
+        private static readonly Font FBold = new Font("Segoe UI", 8.8f, FontStyle.Bold);
+        private Bitmap _iconBmp;
+
+        public AppCompareDialog(SuiteApp app, string suiteRoot, bool dark, Action<SuiteApp> onPrimary, Action<SuiteApp> onSite)
+        {
+            Text = app.DisplayName + " — Σύγκριση Πόρων (NillyHub)";
+            ClientSize = new Size(640, 400);
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            StartPosition = FormStartPosition.CenterParent;
+            BackColor = dark ? Color.FromArgb(20, 21, 25) : Color.FromArgb(245, 247, 251);
+            ForeColor = dark ? Color.FromArgb(240, 244, 250) : Color.FromArgb(22, 24, 30);
+            HandleCreated += delegate { Native.SetDarkTitlebar(Handle, dark); };
+
+            Color cardBg = dark ? Color.FromArgb(28, 30, 36) : Color.White;
+            Color rowAlt = dark ? Color.FromArgb(24, 26, 32) : Color.FromArgb(248, 250, 253);
+            Color muted = dark ? Color.FromArgb(146, 154, 170) : Color.FromArgb(95, 105, 120);
+            Color border = dark ? Color.FromArgb(48, 52, 62) : Color.FromArgb(214, 220, 230);
+            Color lime = dark ? Color.FromArgb(166, 226, 46) : Color.FromArgb(22, 128, 54);
+            Color warn = dark ? Color.FromArgb(255, 148, 122) : Color.FromArgb(185, 48, 38);
+            Color orange = Color.FromArgb(252, 150, 31);
+            Color cyan = Color.FromArgb(102, 217, 239);
+
+            // Load real crisp icon (local -> .iconcache -> vector fallback)
+            string ico = (!string.IsNullOrEmpty(app.LocalDir) && !string.IsNullOrEmpty(app.IconFile)) ? Path.Combine(app.LocalDir, app.IconFile) : "";
+            if (string.IsNullOrEmpty(ico) || !File.Exists(ico)) ico = GitHubClient.GetCachedIconPath(suiteRoot, app.RepoName);
+            _iconBmp = (!string.IsNullOrEmpty(ico) && File.Exists(ico)) ? IconLoader.LoadCrispIcon(ico, 48) : null;
+            if (_iconBmp == null) _iconBmp = IconLoader.DrawPlaceholderIcon(app.Id, app.DisplayName, app.AccentColor, 48);
+
+            // Header strip
+            Panel hdr = new Panel { Left = 0, Top = 0, Width = 640, Height = 76, BackColor = cardBg };
+            PictureBox pic = new PictureBox { Left = 18, Top = 14, Width = 48, Height = 48, Image = _iconBmp, SizeMode = PictureBoxSizeMode.Zoom };
+            Label lblName = new Label { Left = 78, Top = 12, Width = 540, Height = 24, Font = FTitle, ForeColor = ForeColor, Text = app.DisplayName + "  ·  " + app.ShortTag, UseMnemonic = false };
+            Label lblDesc = new Label { Left = 79, Top = 38, Width = 540, Height = 28, Font = FSub, ForeColor = muted, Text = app.Description, UseMnemonic = false };
+            hdr.Controls.AddRange(new Control[] { pic, lblName, lblDesc });
+
+            string replaces = !string.IsNullOrEmpty(app.Replaces) ? app.Replaces : "Βαριά εφαρμογή Windows / τρίτων";
+            string dN = !string.IsNullOrEmpty(app.DiskNilly) ? app.DiskNilly : (app.IsInstalled && app.LocalExeBytes > 0 ? ("~" + Math.Max(1, app.LocalExeBytes / 1024) + " KB EXE") : "~50–90 KB Portable");
+            string dW = !string.IsNullOrEmpty(app.DiskWin) ? app.DiskWin : "50 MB – 2 GB";
+            string rN = !string.IsNullOrEmpty(app.RamNilly) ? app.RamNilly : "~12–25 MB (0 MB κλειστό)";
+            string rW = !string.IsNullOrEmpty(app.RamWin) ? app.RamWin : "150–450 MB (+ background hosts)";
+            string cN = !string.IsNullOrEmpty(app.CpuGpuNilly) ? app.CpuGpuNilly : "0% idle CPU · 0% idle GPU (Native Win32)";
+            string cW = !string.IsNullOrEmpty(app.CpuGpuWin) ? app.CpuGpuWin : "WinUI / WebView2 / Electron + background services";
+
+            // Comparison Table Container
+            Panel tbl = new Panel { Left = 18, Top = 90, Width = 604, Height = 244, BackColor = cardBg };
+            tbl.Paint += delegate(object s, PaintEventArgs e)
+            {
+                using (Pen bp = new Pen(border)) e.Graphics.DrawRectangle(bp, 0, 0, tbl.Width - 1, tbl.Height - 1);
+            };
+
+            AddRow(tbl, 0, 38, dark ? Color.FromArgb(34, 37, 45) : Color.FromArgb(234, 239, 246),
+                "Μέτρηση", muted, app.DisplayName + " (Nilly Suite)", cyan, replaces, orange, FHdr, FHdr);
+            AddRow(tbl, 38, 40, cardBg, "Χώρος στον Δίσκο", ForeColor, dN, lime, dW, warn, FBold, FCell);
+            AddRow(tbl, 78, 40, rowAlt, "RAM (Ανοιχτό / Κλειστό)", ForeColor, rN, lime, rW, warn, FBold, FCell);
+            AddRow(tbl, 118, 44, cardBg, "CPU & GPU Φόρτος", ForeColor, cN, lime, cW, warn, FBold, FCell);
+            AddRow(tbl, 162, 40, rowAlt, "Παρασκήνιο (Services)", ForeColor, "0 services · 0 MB RAM όταν κλείσει", lime, "Updaters, Indexing & Telemetry 24/7", warn, FBold, FCell);
+            AddRow(tbl, 202, 40, cardBg, "Άδεια & Ιδιωτικότητα", ForeColor, "0€ MIT · 100% τοπικό · Zero Admin", lime, "Συνδρομές / Διαφημίσεις / Cloud", warn, FBold, FCell);
+
+            // Bottom Action Bar
+            Button btnAct = new Button
+            {
+                Left = 18, Top = 348, Width = 172, Height = 34, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                Font = FHdr, Text = app.IsInstalled ? ("▶ Άνοιγμα " + app.DisplayName) : ("↓ Εγκατάσταση (0€)"),
+                BackColor = app.IsInstalled ? orange : cyan, ForeColor = Color.FromArgb(14, 18, 24)
+            };
+            btnAct.FlatAppearance.BorderSize = 0;
+            btnAct.Click += delegate
+            {
+                Close();
+                if (onPrimary != null) onPrimary(app);
+            };
+
+            Button btnWeb = new Button
+            {
+                Left = 200, Top = 348, Width = 180, Height = 34, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                Font = FHdr, Text = "↗ Σελίδα nillygraphics.com",
+                BackColor = dark ? Color.FromArgb(36, 39, 46) : Color.FromArgb(236, 240, 246), ForeColor = ForeColor
+            };
+            btnWeb.FlatAppearance.BorderColor = border;
+            btnWeb.Click += delegate { if (onSite != null) onSite(app); };
+
+            Label lblBrand = new Label
+            {
+                Left = 386, Top = 356, Width = 148, Height = 20, Font = new Font("Segoe UI", 7.8f),
+                ForeColor = orange, TextAlign = ContentAlignment.MiddleRight, Text = "Nilly graphics · 0€ MIT"
+            };
+
+            Button btnClose = new Button
+            {
+                Left = 542, Top = 348, Width = 80, Height = 34, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                Font = FHdr, Text = "Κλείσιμο",
+                BackColor = dark ? Color.FromArgb(36, 39, 46) : Color.FromArgb(236, 240, 246), ForeColor = ForeColor
+            };
+            btnClose.FlatAppearance.BorderColor = border;
+            btnClose.Click += delegate { Close(); };
+
+            Controls.AddRange(new Control[] { hdr, tbl, btnAct, btnWeb, lblBrand, btnClose });
+            CancelButton = btnClose;
+        }
+
+        private static void AddRow(Panel parent, int top, int h, Color bg, string c1, Color fg1, string c2, Color fg2, string c3, Color fg3, Font f1, Font fVal)
+        {
+            Panel row = new Panel { Left = 1, Top = top, Width = parent.Width - 2, Height = h, BackColor = bg };
+            Label l1 = new Label { Left = 10, Top = 2, Width = 148, Height = h - 4, Font = f1, ForeColor = fg1, TextAlign = ContentAlignment.MiddleLeft, Text = c1, UseMnemonic = false };
+            Label l2 = new Label { Left = 162, Top = 2, Width = 212, Height = h - 4, Font = fVal, ForeColor = fg2, TextAlign = ContentAlignment.MiddleLeft, Text = c2, UseMnemonic = false };
+            Label l3 = new Label { Left = 380, Top = 2, Width = 214, Height = h - 4, Font = fVal, ForeColor = fg3, TextAlign = ContentAlignment.MiddleLeft, Text = c3, UseMnemonic = false };
+            row.Controls.AddRange(new Control[] { l1, l2, l3 });
+            parent.Controls.Add(row);
         }
 
         protected override void Dispose(bool disposing)
@@ -1854,6 +2084,7 @@ namespace NillyHub
                                (!string.IsNullOrEmpty(ap.SiteUrl) ? ap.SiteUrl : ("https://github.com/" + GitHubClient.OWNER + "/" + ap.RepoName));
                     try { Process.Start(new ProcessStartInfo(u) { UseShellExecute = true }); } catch { }
                 };
+                tile.InfoClicked += OnShowAppInfo;
                 tile.UninstallClicked += OnUninstallApp;
                 tile.RefreshTile(_dark);
                 _tiles.Add(tile);
@@ -2020,6 +2251,25 @@ namespace NillyHub
             StyleSuiteAllBtn();
         }
 
+        private void OnShowAppInfo(SuiteApp app)
+        {
+            using (AppCompareDialog dlg = new AppCompareDialog(app, _suiteRoot, _dark,
+                delegate(SuiteApp a)
+                {
+                    if (a.IsInstalled) OnLaunchApp(a);
+                    else if (a.FoundOnGitHub) OnInstallOrUpdateApp(a);
+                },
+                delegate(SuiteApp a)
+                {
+                    string u = !string.IsNullOrEmpty(a.RemoteHomepage) ? a.RemoteHomepage :
+                               (!string.IsNullOrEmpty(a.SiteUrl) ? a.SiteUrl : ("https://github.com/" + GitHubClient.OWNER + "/" + a.RepoName));
+                    try { Process.Start(new ProcessStartInfo(u) { UseShellExecute = true }); } catch { }
+                }))
+            {
+                dlg.ShowDialog(this);
+            }
+        }
+
         private void OpenWindowsSwitchWizard()
         {
             using (WindowsSwitchDialog dialog = new WindowsSwitchDialog(_dark))
@@ -2158,10 +2408,32 @@ namespace NillyHub
                         string suffix = src == "cached" ? " · ETag 304" : "";
                         _lblStatus.Text = string.Format("github.com/{0} ({1} repos) · {2}{3}",
                             GitHubClient.OWNER, gh, upd > 0 ? (upd + " ενημερώσεις διαθέσιμες") : "Όλα ενημερωμένα", suffix);
+                        FetchMissingIconsAsync();
                         Native.TrimWorkingSet();
                     });
                 }
                 catch { }
+            });
+            th.IsBackground = true;
+            th.Start();
+        }
+
+        private void FetchMissingIconsAsync()
+        {
+            List<SuiteApp> snapshot = new List<SuiteApp>(_apps);
+            Thread th = new Thread(delegate()
+            {
+                for (int i = 0; i < snapshot.Count; i++)
+                {
+                    SuiteApp a = snapshot[i];
+                    if (a.IsInstalled && !string.IsNullOrEmpty(a.LocalDir) && File.Exists(Path.Combine(a.LocalDir, a.IconFile)))
+                        continue;
+                    if (GitHubClient.EnsureRemoteIconCached(a, _suiteRoot))
+                    {
+                        SuiteApp updated = a;
+                        try { BeginInvoke((Action)delegate { RefreshSingleTile(updated); }); } catch { }
+                    }
+                }
             });
             th.IsBackground = true;
             th.Start();
