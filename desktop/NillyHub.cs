@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.0.0")]
-[assembly: AssemblyFileVersion("1.6.0.0")]
+[assembly: AssemblyVersion("1.6.1.0")]
+[assembly: AssemblyFileVersion("1.6.1.0")]
 
 namespace NillyHub
 {
@@ -1977,9 +1977,9 @@ namespace NillyHub
             {
                 Dock = DockStyle.Top, Height = 28, TextAlign = ContentAlignment.MiddleCenter,
                 Font = FontBanner, UseMnemonic = false,
-                Text = "~6 GB βαριά προγράμματα → Μόνο 1,2 MB (99,98% πιο ελαφριά) · 11 δωρεάν εργαλεία (0€)",
+                Text = _apps.Count + " δωρεάν προγράμματα · 99,98% ελαφρύτερα",
                 AccessibleName = "Σύγκριση σουίτας",
-                AccessibleDescription = "11 δωρεάν εργαλεία Windows σε ~1,2 MB (99,98% πιο ελαφριά από ~6 GB αντίστοιχων εφαρμογών)."
+                AccessibleDescription = "Δωρεάν εργαλεία Windows (99,98% ελαφρύτερα από ~6 GB αντίστοιχων εφαρμογών)."
             };
             _sharedTip.SetToolTip(_suiteBar, "Σύγκριση: ~6 GB (Acrobat Pro, Bridge, Photos, Snipping Tool, Media Player, Notepad, Calc, Sublime, TreeSize) vs 1,24 MiB όλη η Nilly Suite (MIT · 0€ · 0 MB RAM στο παρασκήνιο)");
 
@@ -2098,7 +2098,7 @@ namespace NillyHub
         private void UpdateSuiteBannerText()
         {
             if (_suiteBar == null) return;
-            _suiteBar.Text = string.Format("~6 GB βαριά προγράμματα → Μόνο {0} (99,98% πιο ελαφριά) · {1} δωρεάν εργαλεία (0€)", _suiteSizeLabel, _apps.Count);
+            _suiteBar.Text = string.Format("{0} δωρεάν προγράμματα · 99,98% ελαφρύτερα", _apps.Count);
         }
 
         private void LoadInstantCache()
