@@ -910,7 +910,7 @@ namespace NillyHub
         public static List<SuiteApp> BuildBundledCatalog()
         {
             List<SuiteApp> apps = BuildDefaultCatalog();
-            string catalogFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "catalog.json");
+            string catalogFile = Path.Combine(Path.GetDirectoryName(typeof(SuiteCatalog).Assembly.Location), "catalog.json");
             if (File.Exists(catalogFile))
             {
                 string suiteSizeLabel = null;
