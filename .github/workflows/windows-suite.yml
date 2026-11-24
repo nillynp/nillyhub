@@ -1,0 +1,82 @@
+name: Verify the 11-tool suite on Windows
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-suite.yml'
+      - 'desktop/**'
+      - 'Install_NillyHub.ps1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  install-suite:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Hub and exercise the production installer for each release
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\Install_NillyHub.ps1 -Silent
+          $exe = (Resolve-Path .\NillyHub.exe).Path
+          $assembly = [Reflection.Assembly]::LoadFrom($exe)
+          $catalog = $assembly.GetType('NillyHub.SuiteCatalog', $true)
+          $apps = $catalog.GetMethod('BuildDefaultCatalog').Invoke($null, @())
+          $root = $catalog.GetMethod('DetectSuiteRoot').Invoke($null, @())
+          $install = $catalog.GetMethod('InstallOrUpdate')
+          $refresh = $catalog.GetMethod('RefreshLocalState')
+          $progress = [Action[string]] { param($message) Write-Host $message }
+          if ($apps.Count -ne 11) { throw "Expected 11 catalog entries, got $($apps.Count)" }
+          $failures = @()
+          foreach ($app in $apps) {
+            try {
+              $install.Invoke($null, @($app, $progress))
+              $refresh.Invoke($null, @($app, $root))
+              if (-not $app.IsInstalled -or -not (Test-Path -LiteralPath $app.LocalLaunchPath -PathType Leaf)) {
+                throw 'Launcher was not installed'
+              }
+              Write-Host "INSTALLED $($app.RepoName)"
+            } catch {
+              $failures += "$($app.RepoName): $($_.Exception.GetBaseException().Message)"
+            }
+          }
+          if ($failures.Count) { throw ($failures -join [Environment]::NewLine) }
+          Write-Host 'SUITE_INSTALLED=11/11'
+
+          $note = $apps | Where-Object RepoName -EQ 'nillynote-pro'
+          $sentinel = Join-Path $note.LocalDir 'previous-install.txt'
+          Set-Content -LiteralPath $sentinel -Value 'preserve the original installation'
+          $before = (Get-FileHash -LiteralPath $note.LocalLaunchPath -Algorithm SHA256).Hash
+          $prefix = [string][char]0x039C + [char]0x03B5 + [char]0x03C4
+          $failDuringInstall = [Action[string]] {
+            param($message)
+            if ($message.StartsWith($prefix, [StringComparison]::Ordinal)) { throw 'NILLY_QA_INJECTED_FAILURE' }
+          }
+          $failedAsIntended = $false
+          try {
+            $install.Invoke($null, @($note, $failDuringInstall))
+          } catch {
+            if ($_.ToString() -notmatch 'NILLY_QA_INJECTED_FAILURE' -and $_.Exception.GetBaseException().Message -notmatch 'NILLY_QA_INJECTED_FAILURE') {
+              throw
+            }
+            $failedAsIntended = $true
+          }
+          if (-not $failedAsIntended -or -not (Test-Path -LiteralPath $sentinel) -or
+              (Get-FileHash -LiteralPath $note.LocalLaunchPath -Algorithm SHA256).Hash -ne $before) {
+            throw 'Rollback failed to restore the original installation'
+          }
+          Write-Host 'ROLLBACK_RESTORED=True'
+
+          $log = Join-Path $env:RUNNER_TEMP 'nillyhub-smoke.txt'
+          $preview = Join-Path $env:RUNNER_TEMP 'nillyhub.png'
+          $process = Start-Process -FilePath $exe -ArgumentList ('--test-smoke "' + $log + '" "' + $preview + '"') -PassThru -Wait
+          $result = Get-Content -LiteralPath $log
+          $result | Write-Host
+          if ($process.ExitCode -ne 0 -or $result -notcontains 'SMOKE_RESULT=PASS' -or $result -notcontains 'LOCAL_INSTALLED=11/11' -or $result -notcontains 'WINDOW_OPENED_OK=True') {
+            throw 'Hub did not open with all 11 tools installed'
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hub-windows-preview
+          path: ${{ runner.temp }}/nillyhub.png
