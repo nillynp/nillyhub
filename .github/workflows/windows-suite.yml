@@ -47,7 +47,8 @@ jobs:
           if ($failures.Count) { throw ($failures -join [Environment]::NewLine) }
           Write-Host 'SUITE_INSTALLED=11/11'
 
-          $note = $apps | Where-Object RepoName -EQ 'nillynote-pro'
+          $note = $apps[2]
+          if ($note.RepoName -ne 'nillynote-pro') { throw 'Expected the NillyNote rollback fixture' }
           $sentinel = Join-Path $note.LocalDir 'previous-install.txt'
           Set-Content -LiteralPath $sentinel -Value 'preserve the original installation'
           $before = (Get-FileHash -LiteralPath $note.LocalLaunchPath -Algorithm SHA256).Hash
