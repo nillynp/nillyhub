@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.3.0.0")]
-[assembly: AssemblyFileVersion("1.3.0.0")]
+[assembly: AssemblyVersion("1.4.0.0")]
+[assembly: AssemblyFileVersion("1.4.0.0")]
 
 namespace NillyHub
 {
@@ -496,7 +496,7 @@ namespace NillyHub
         {
             newEtag = etag;
             HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
-            req.UserAgent = "NillyHub/1.3 (https://nillygraphics.com/)";
+            req.UserAgent = "NillyHub/1.4 (https://nillygraphics.com/)";
             req.Accept = "application/vnd.github+json";
             req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
             req.Timeout = 12000;
@@ -617,8 +617,42 @@ namespace NillyHub
             { "nillyquicksnap", "NillyQuickSnap" },
             { "nillydisk-pro", "NillyDisk-Pro" },
             { "nilly-pc-manager-tools", "Nilly-PC-Manager-Tools" },
-            { "nillyclip-pro", "NillyClip-Pro" }
+            { "nillyclip-pro", "NillyClip-Pro" },
+            { "nillyhub", "NillyHub" }
         };
+
+        public static bool TryCheckHubSelfUpdate(DateTime hubRepoPushedUtc, out string newTag, out string zipUrl, out string sha256, out long sizeBytes)
+        {
+            newTag = null; zipUrl = null; sha256 = null; sizeBytes = 0;
+            try
+            {
+                Version curVer = Assembly.GetExecutingAssembly().GetName().Version;
+                DateTime exeBuilt = File.GetLastWriteTimeUtc(Application.ExecutablePath);
+                if (hubRepoPushedUtc != DateTime.MinValue && hubRepoPushedUtc <= exeBuilt.AddMinutes(10))
+                    return false;
+                string url = ResolvePortableZip("nillyhub", out newTag, out sha256, out sizeBytes);
+                Version remVer;
+                if (!TryParseTagVersion(newTag, out remVer) || remVer <= curVer)
+                    return false;
+                zipUrl = url;
+                return true;
+            }
+            catch { return false; }
+        }
+
+        private static bool TryParseTagVersion(string tag, out Version ver)
+        {
+            ver = null;
+            if (string.IsNullOrEmpty(tag) || !tag.StartsWith("v", StringComparison.OrdinalIgnoreCase)) return false;
+            string[] parts = tag.Substring(1).Split('.');
+            if (parts.Length < 2 || parts.Length > 3) return false;
+            int maj, min, pat = 0;
+            if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out maj)) return false;
+            if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out min)) return false;
+            if (parts.Length == 3 && !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out pat)) return false;
+            ver = new Version(maj, min, pat, 0);
+            return true;
+        }
 
         public static string ResolvePortableZip(string repoName, out string tag, out string digest, out long size)
         {
@@ -678,7 +712,7 @@ namespace NillyHub
         public static void DownloadVerifiedZip(string url, string destination, string expectedHash, long expectedBytes)
         {
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-            request.UserAgent = "NillyHub/1.3 (https://nillygraphics.com/)";
+            request.UserAgent = "NillyHub/1.4 (https://nillygraphics.com/)";
             request.Timeout = 18000;
             request.ReadWriteTimeout = 18000;
             using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
@@ -1030,7 +1064,7 @@ namespace NillyHub
             catch { }
         }
 
-        private static void ExtractZipSmart(string zipPath, string targetDir)
+        internal static void ExtractZipSmart(string zipPath, string targetDir)
         {
             using (ZipArchive arch = ZipFile.OpenRead(zipPath))
             {
@@ -1482,6 +1516,10 @@ namespace NillyHub
         private DoubleBufferedFlowPanel _grid;
         private Panel _footer;
         private Label _lblStatus, _lblCredit;
+        private Button _btnHubUpd;
+        private string _hubUpdTag, _hubUpdUrl, _hubUpdSha;
+        private long _hubUpdSize;
+        private bool _hubUpdating = false;
 
         public MainForm(bool smokeMode)
         {
@@ -1597,11 +1635,22 @@ namespace NillyHub
             _header.Controls.Add(leftBrand);
 
             // Minimal Footer (docked at bottom)
-            _footer = new Panel { Dock = DockStyle.Bottom, Height = 26, Padding = new Padding(14, 0, 14, 0) };
-            _lblStatus = new Label { Dock = DockStyle.Left, Width = 500, TextAlign = ContentAlignment.MiddleLeft, Font = FontFooter, UseMnemonic = false, Text = "Έτοιμο" };
-            _lblCredit = new Label { Dock = DockStyle.Right, Width = 360, TextAlign = ContentAlignment.MiddleRight, Font = FontFooter, Cursor = Cursors.Hand, UseMnemonic = false, Text = "created by Nilly graphics (Sotiris Christos) · nillygraphics.com" };
+            _footer = new Panel { Dock = DockStyle.Bottom, Height = 28, Padding = new Padding(14, 2, 14, 2) };
+            _lblStatus = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = FontFooter, UseMnemonic = false, Text = "Έτοιμο" };
+            _btnHubUpd = new Button
+            {
+                Dock = DockStyle.Right, Width = 148, Visible = false,
+                FlatStyle = FlatStyle.Flat, Font = FontPill, Cursor = Cursors.Hand, TabStop = false,
+                BackColor = Color.FromArgb(252, 150, 31), ForeColor = Color.FromArgb(14, 18, 24),
+                Text = "⬆ Hub Update"
+            };
+            _btnHubUpd.FlatAppearance.BorderSize = 0;
+            _btnHubUpd.Click += delegate { RunHubSelfUpdate(); };
+            _sharedTip.SetToolTip(_btnHubUpd, "Αυτόματη SHA-256 ενημέρωση του NillyHub από GitHub");
+            _lblCredit = new Label { Dock = DockStyle.Right, Width = 365, TextAlign = ContentAlignment.MiddleRight, Font = FontFooter, Cursor = Cursors.Hand, UseMnemonic = false, Text = "created by Nilly graphics (Sotiris Christos) · nillygraphics.com" };
             _lblCredit.Click += delegate { try { Process.Start(new ProcessStartInfo("https://nillygraphics.com/") { UseShellExecute = true }); } catch { } };
             _footer.Controls.Add(_lblStatus);
+            _footer.Controls.Add(_btnHubUpd);
             _footer.Controls.Add(_lblCredit);
 
             // Flicker-free Double-Buffered Square Grid (docked Fill — MUST be z-index 0 so NOTHING clips Row 1!)
@@ -1879,7 +1928,21 @@ namespace NillyHub
                 List<GitHubRepoInfo> repos = null;
                 string err = null;
                 string src = "live";
-                try { repos = GitHubClient.FetchAllOwnerReposCached(_suiteRoot, !forceManual, out src); }
+                bool hasHubUpd = false;
+                string hTag = null, hUrl = null, hSha = null;
+                long hSize = 0;
+                try
+                {
+                    repos = GitHubClient.FetchAllOwnerReposCached(_suiteRoot, !forceManual, out src);
+                    if (repos != null)
+                    {
+                        DateTime hubPushed = DateTime.MinValue;
+                        for (int i = 0; i < repos.Count; i++)
+                            if (string.Equals(repos[i].Name, "nillyhub", StringComparison.OrdinalIgnoreCase))
+                            { hubPushed = repos[i].PushedAtUtc; break; }
+                        hasHubUpd = GitHubClient.TryCheckHubSelfUpdate(hubPushed, out hTag, out hUrl, out hSha, out hSize);
+                    }
+                }
                 catch (Exception ex) { err = ex.Message; }
                 try
                 {
@@ -1893,6 +1956,16 @@ namespace NillyHub
                             return;
                         }
                         ApplyRepoListToApps(repos, true);
+                        if (hasHubUpd && !string.IsNullOrEmpty(hTag))
+                        {
+                            _hubUpdTag = hTag; _hubUpdUrl = hUrl; _hubUpdSha = hSha; _hubUpdSize = hSize;
+                            _btnHubUpd.Text = "⬆ NillyHub " + hTag;
+                            _btnHubUpd.Visible = true;
+                        }
+                        else
+                        {
+                            _btnHubUpd.Visible = false;
+                        }
                         int upd = 0, gh = 0;
                         for (int i = 0; i < _apps.Count; i++) { if (_apps[i].HasUpdate) upd++; if (_apps[i].FoundOnGitHub) gh++; }
                         string suffix = src == "cached" ? " · ETag 304" : "";
@@ -1902,6 +1975,102 @@ namespace NillyHub
                     });
                 }
                 catch { }
+            });
+            th.IsBackground = true;
+            th.Start();
+        }
+
+        private void RunHubSelfUpdate()
+        {
+            if (_hubUpdating || string.IsNullOrEmpty(_hubUpdUrl) || string.IsNullOrEmpty(_hubUpdSha)) return;
+            DialogResult dr = MessageBox.Show(this,
+                "Διαθέσιμη νέα έκδοση NillyHub (" + _hubUpdTag + ")!\r\nΘες αυτόματη επαληθευμένη (SHA-256) ενημέρωση & επανεκκίνηση;",
+                "Ενημέρωση NillyHub — Nilly graphics", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (dr != DialogResult.Yes) return;
+
+            _hubUpdating = true;
+            _btnHubUpd.Enabled = false;
+            _btnHubUpd.Text = "Ενημέρωση...";
+            string url = _hubUpdUrl, sha = _hubUpdSha, tag = _hubUpdTag;
+            long size = _hubUpdSize;
+            string curExe = Application.ExecutablePath;
+            int myPid = Process.GetCurrentProcess().Id;
+
+            Thread th = new Thread(delegate()
+            {
+                string temp = Path.Combine(Path.GetTempPath(), "NillyHub-SelfUpd-" + Guid.NewGuid().ToString("N"));
+                try
+                {
+                    Directory.CreateDirectory(temp);
+                    string zip = Path.Combine(temp, "nillyhub.zip");
+                    string pkg = Path.Combine(temp, "pkg");
+                    Directory.CreateDirectory(pkg);
+
+                    BeginInvoke((Action)delegate { _lblStatus.Text = "Λήψη & SHA-256 έλεγχος NillyHub " + tag + "..."; });
+                    GitHubClient.DownloadVerifiedZip(url, zip, sha, size);
+                    SuiteCatalog.ExtractZipSmart(zip, pkg);
+
+                    string srcCs = Path.Combine(pkg, @"desktop\NillyHub.cs");
+                    if (!File.Exists(srcCs)) throw new FileNotFoundException("Λείπει το desktop\\NillyHub.cs από το πακέτο.");
+
+                    string csc = @"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe";
+                    if (!File.Exists(csc)) csc = @"C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe";
+                    if (!File.Exists(csc)) throw new FileNotFoundException("Δεν βρέθηκε ο C# compiler (.NET Framework 4.x).");
+
+                    BeginInvoke((Action)delegate { _lblStatus.Text = "Μεταγλώττιση NillyHub " + tag + "..."; });
+                    string newExe = Path.Combine(temp, "NillyHub.new.exe");
+                    string ico = Path.Combine(pkg, "NillyHub.ico");
+                    string args = "/nologo /target:winexe /optimize+ /utf8output /platform:anycpu /out:\"" + newExe + "\" " +
+                                  "/r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll " +
+                                  "/r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll " +
+                                  (File.Exists(ico) ? ("/win32icon:\"" + ico + "\" ") : "") +
+                                  "\"" + srcCs + "\"";
+
+                    ProcessStartInfo cpsi = new ProcessStartInfo(csc, args);
+                    cpsi.UseShellExecute = false;
+                    cpsi.CreateNoWindow = true;
+                    using (Process cp = Process.Start(cpsi))
+                    {
+                        if (cp == null || !cp.WaitForExit(60000) || cp.ExitCode != 0 || !File.Exists(newExe))
+                            throw new InvalidOperationException("Αποτυχία μεταγλώττισης της νέας έκδοσης NillyHub.");
+                    }
+
+                    // Write hidden atomic swapper script that runs right after this process exits cleanly
+                    string swapPs1 = Path.Combine(temp, "swap.ps1");
+                    string script =
+                        "param($p,$src,$dst,$tmp)\r\n" +
+                        "for($i=0;$i -lt 40;$i++){ if(-not (Get-Process -Id $p -ErrorAction SilentlyContinue)){break}; Start-Sleep -Milliseconds 150 }\r\n" +
+                        "Copy-Item -LiteralPath $src -Destination $dst -Force\r\n" +
+                        "Start-Process -FilePath $dst -WorkingDirectory (Split-Path -Parent $dst)\r\n" +
+                        "Start-Sleep -Milliseconds 400\r\n" +
+                        "Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue\r\n";
+                    File.WriteAllText(swapPs1, script, Encoding.UTF8);
+
+                    ProcessStartInfo spsi = new ProcessStartInfo("powershell.exe",
+                        "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + swapPs1 + "\" " +
+                        myPid + " \"" + newExe + "\" \"" + curExe + "\" \"" + temp + "\"");
+                    spsi.UseShellExecute = false;
+                    spsi.CreateNoWindow = true;
+                    Process.Start(spsi);
+
+                    BeginInvoke((Action)delegate { Application.Exit(); });
+                }
+                catch (Exception ex)
+                {
+                    try { Directory.Delete(temp, true); } catch { }
+                    try
+                    {
+                        BeginInvoke((Action)delegate
+                        {
+                            _hubUpdating = false;
+                            _btnHubUpd.Enabled = true;
+                            _btnHubUpd.Text = "⬆ NillyHub " + tag;
+                            _lblStatus.Text = "Αποτυχία ενημέρωσης NillyHub.";
+                            MessageBox.Show(this, "Αδυναμία ενημέρωσης NillyHub:\r\n" + ex.Message, "NillyHub", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        });
+                    }
+                    catch { }
+                }
             });
             th.IsBackground = true;
             th.Start();
