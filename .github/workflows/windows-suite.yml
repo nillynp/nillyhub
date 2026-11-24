@@ -1,9 +1,10 @@
-name: Verify the 11-tool suite on Windows
+name: Verify the Nilly Suite on Windows
 on:
   push:
     paths:
       - '.github/workflows/windows-suite.yml'
       - 'desktop/**'
+      - 'catalog.json'
       - 'Install_NillyHub.ps1'
   workflow_dispatch:
 permissions:
@@ -14,28 +15,52 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Install Hub and exercise the production installer for each release
         shell: powershell
+        env:
+          NILLYHUB_CI_RELEASES_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
+          $releaseToken = $env:NILLYHUB_CI_RELEASES_TOKEN
+          Remove-Item Env:\NILLYHUB_CI_RELEASES_TOKEN
+          if ([string]::IsNullOrWhiteSpace($releaseToken)) { throw 'GitHub Releases API token is unavailable' }
           & .\Install_NillyHub.ps1 -Silent
           $exe = (Resolve-Path .\NillyHub.exe).Path
           $assembly = [Reflection.Assembly]::LoadFrom($exe)
           $catalog = $assembly.GetType('NillyHub.SuiteCatalog', $true)
-          $apps = $catalog.GetMethod('BuildDefaultCatalog').Invoke($null, @())
-          $root = $catalog.GetMethod('DetectSuiteRoot').Invoke($null, @())
+          $apps = $catalog.GetMethod('BuildDefaultCatalog').Invoke($null, $null)
+          $root = $catalog.GetMethod('DetectSuiteRoot').Invoke($null, $null)
+          $catalogJson = Get-Content -LiteralPath .\catalog.json -Raw -Encoding UTF8
+          $catalogData = $catalogJson | ConvertFrom-Json
+          $expectedRepos = @($catalogData.apps | ForEach-Object { [string]$_.repo })
+          $mergeArgs = [object[]]::new(4)
+          $mergeArgs[0] = $apps.PSObject.BaseObject
+          $mergeArgs[1] = $catalogJson
+          $mergeArgs[2] = $root
+          $mergeArgs[3] = [string]$catalogData.suiteSizeLabel
+          $env:NILLYHUB_CI_RELEASES_TOKEN = $releaseToken
+          $releaseToken = $null
+          try {
+            [void]$catalog.GetMethod('MergeCatalogJson').Invoke($null, $mergeArgs)
+          } finally {
+            Remove-Item Env:\NILLYHUB_CI_RELEASES_TOKEN -ErrorAction SilentlyContinue
+          }
           $install = $catalog.GetMethod('InstallOrUpdate')
           $refresh = $catalog.GetMethod('RefreshLocalState')
-          $repos = @($apps | ForEach-Object RepoName)
-          if (($repos | Select-Object -Unique).Count -ne 11 -or $repos -notcontains 'nillyclip-pro') {
-            throw 'The suite catalog must contain 11 unique tools, including NillyClip Pro'
+          $repos = @($apps | ForEach-Object { [string]$_.RepoName })
+          if (-not $expectedRepos.Count -or $repos.Count -ne $expectedRepos.Count -or
+              ($repos | Select-Object -Unique).Count -ne $repos.Count -or
+              (Compare-Object $expectedRepos $repos)) {
+            throw 'Windows installer catalog differs from catalog.json'
           }
           $progress = [Action[string]] { param($message) Write-Host $message }
           $failures = @()
           foreach ($app in $apps) {
             try {
-              $install.Invoke($null, @($app, $progress))
-              $refresh.Invoke($null, @($app, $root))
+              $install.Invoke($null, [object[]]@($app.PSObject.BaseObject, $progress))
+              $refresh.Invoke($null, [object[]]@($app.PSObject.BaseObject, $root))
               if (-not $app.IsInstalled -or -not (Test-Path -LiteralPath $app.LocalLaunchPath -PathType Leaf)) {
                 throw 'Launcher was not installed'
               }
@@ -45,10 +70,10 @@ jobs:
             }
           }
           if ($failures.Count) { throw ($failures -join [Environment]::NewLine) }
-          Write-Host 'SUITE_INSTALLED=11/11'
+          Write-Host "SUITE_INSTALLED=$($repos.Count)/$($expectedRepos.Count)"
 
-          $note = $apps[2]
-          if ($note.RepoName -ne 'nillynote-pro') { throw 'Expected the NillyNote rollback fixture' }
+          $note = $apps | Where-Object { $_.RepoName -eq 'nillynote-pro' }
+          if (-not $note) { throw 'Expected the NillyNote rollback fixture' }
           $sentinel = Join-Path $note.LocalDir 'previous-install.txt'
           Set-Content -LiteralPath $sentinel -Value 'preserve the original installation'
           $before = (Get-FileHash -LiteralPath $note.LocalLaunchPath -Algorithm SHA256).Hash
@@ -59,7 +84,7 @@ jobs:
           }
           $failedAsIntended = $false
           try {
-            $install.Invoke($null, @($note, $failDuringInstall))
+            $install.Invoke($null, [object[]]@($note.PSObject.BaseObject, $failDuringInstall))
           } catch {
             if ($_.ToString() -notmatch 'NILLY_QA_INJECTED_FAILURE' -and $_.Exception.GetBaseException().Message -notmatch 'NILLY_QA_INJECTED_FAILURE') {
               throw
@@ -77,8 +102,8 @@ jobs:
           $process = Start-Process -FilePath $exe -ArgumentList ('--test-smoke "' + $log + '" "' + $preview + '"') -PassThru -Wait
           $result = Get-Content -LiteralPath $log
           $result | Write-Host
-          if ($process.ExitCode -ne 0 -or $result -notcontains 'SMOKE_RESULT=PASS' -or $result -notcontains 'LOCAL_INSTALLED=11/11' -or $result -notcontains 'WINDOW_OPENED_OK=True') {
-            throw 'Hub did not open with all 11 tools installed'
+          if ($process.ExitCode -ne 0 -or $result -notcontains 'SMOKE_RESULT=PASS' -or $result -notcontains "LOCAL_INSTALLED=$($expectedRepos.Count)/$($expectedRepos.Count)" -or $result -notcontains 'WINDOW_OPENED_OK=True') {
+            throw 'Hub did not open with all catalog tools installed'
           }
       - uses: actions/upload-artifact@v4
         with:

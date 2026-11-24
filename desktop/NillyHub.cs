@@ -507,9 +507,17 @@ namespace NillyHub
     {
         public const string OWNER = "nillynp";
 
+        private static readonly string CiReleaseToken;
+
         static GitHubClient()
         {
             try { ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072 | SecurityProtocolType.Tls12; } catch { }
+            if (string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase))
+            {
+                const string tokenVariable = "NILLYHUB_CI_RELEASES_TOKEN";
+                CiReleaseToken = Environment.GetEnvironmentVariable(tokenVariable);
+                Environment.SetEnvironmentVariable(tokenVariable, null, EnvironmentVariableTarget.Process);
+            }
         }
 
         public static string HttpGet(string url)
@@ -525,6 +533,14 @@ namespace NillyHub
             HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
             req.UserAgent = "NillyHub/1.6 (https://nillygraphics.com/)";
             req.Accept = "application/vnd.github+json";
+            if (!string.IsNullOrEmpty(CiReleaseToken) && req.RequestUri.Scheme == Uri.UriSchemeHttps
+                && req.RequestUri.IsDefaultPort && string.IsNullOrEmpty(req.RequestUri.UserInfo)
+                && string.Equals(req.RequestUri.Host, "api.github.com", StringComparison.OrdinalIgnoreCase))
+            {
+                // The job token is only for GitHub API requests and is never passed to an installer.
+                req.AllowAutoRedirect = false;
+                req.Headers[HttpRequestHeader.Authorization] = "Bearer " + CiReleaseToken;
+            }
             req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
             req.Timeout = 12000;
             req.ReadWriteTimeout = 15000;
@@ -2726,6 +2742,8 @@ namespace NillyHub
             {
                 string root = SuiteCatalog.DetectSuiteRoot();
                 List<SuiteApp> apps = SuiteCatalog.BuildDefaultCatalog();
+                string suiteSizeLabel = null;
+                SuiteCatalog.MergeCatalogJson(apps, GitHubClient.LoadCachedCatalogJson(root), root, ref suiteSizeLabel);
                 int localFound = 0, crispIcons = 0;
                 for (int i = 0; i < apps.Count; i++)
                 {
