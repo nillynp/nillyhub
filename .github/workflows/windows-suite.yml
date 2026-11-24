@@ -26,8 +26,11 @@ jobs:
           $root = $catalog.GetMethod('DetectSuiteRoot').Invoke($null, @())
           $install = $catalog.GetMethod('InstallOrUpdate')
           $refresh = $catalog.GetMethod('RefreshLocalState')
+          $repos = @($apps | ForEach-Object RepoName)
+          if (($repos | Select-Object -Unique).Count -ne 11 -or $repos -notcontains 'nillyclip-pro') {
+            throw 'The suite catalog must contain 11 unique tools, including NillyClip Pro'
+          }
           $progress = [Action[string]] { param($message) Write-Host $message }
-          if ($apps.Count -ne 11) { throw "Expected 11 catalog entries, got $($apps.Count)" }
           $failures = @()
           foreach ($app in $apps) {
             try {
