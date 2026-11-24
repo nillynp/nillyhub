@@ -1,0 +1,55 @@
+name: Publish NillyHub v1.1
+on:
+  push:
+    branches: ['release/publish-v1-1']
+    paths: ['.github/workflows/publish-verified.yml']
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 4c19c122f0437190a03db231114c1b84392d76c0
+      - name: Package and publish verified portable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: 'v1.1'
+          RELEASE_ZIP: 'NillyHub-v1.1-Portable.zip'
+          RELEASE_NAME: 'NillyHub v1.1'
+          SOURCE_SHA: '4c19c122f0437190a03db231114c1b84392d76c0'
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/45451819502" | jq -e --arg sha "$SOURCE_SHA" '.head_sha == $sha and .conclusion == "success"' > /dev/null
+          mkdir -p "$RUNNER_TEMP/nilly-release"
+          out="$RUNNER_TEMP/nilly-release"
+          git archive --format=zip --output="$out/$RELEASE_ZIP" "$SOURCE_SHA" -- LICENSE README.md '*.ico' '*.bat' '*.ps1' desktop
+          unzip -p "$out/$RELEASE_ZIP" README.md | sed -e '/^> Windows QA candidate/d' -e '/^> Δοκιμαστική έκδοση/d' > "$out/README.md"
+          zip -jq "$out/$RELEASE_ZIP" "$out/README.md"
+          unzip -tq "$out/$RELEASE_ZIP"
+          (cd "$out" && sha256sum "$RELEASE_ZIP" > SHA256SUMS.txt)
+          cat "$out/SHA256SUMS.txt"
+          cat > "$out/notes.md" <<'NOTES'
+          ### Ελληνικά
+          Ένας launcher για 11 δωρεάν εργαλεία Windows, μαζί με το NillyClip Pro. Άνοιξε το Hub και πάτησε «↓ Όλη η Σουίτα» για να κατεβάσεις και να εγκαταστήσεις τα εργαλεία. Το Hub επαληθεύει το SHA-256 κάθε portable πακέτου.
+          Η διαδρομή εγκατάστασης δοκιμάστηκε με 11/11 εργαλεία και με επαναφορά προηγούμενης εγκατάστασης μετά από ελεγχόμενη αστοχία. Η επιλογή «⇄ Windows» ανοίγει τις σχετικές ρυθμίσεις, μαζί με τις ρυθμίσεις του προχείρου.
+          Αποσυμπίεσε το ZIP και άνοιξε το `Install_NillyHub.bat`. Απαιτείται Internet για λήψη της σουίτας. Άδεια MIT.
+          
+          ### English
+          One launcher for 11 free Windows tools, including NillyClip Pro. Open Hub and choose the full-suite button to download and install the apps. Hub verifies each portable package’s SHA-256.
+          The Windows workflow installed 11/11 tools and confirmed rollback to the previous install after an injected failure. The Windows shortcut opens the relevant settings, including clipboard settings.
+          Extract the ZIP and run `Install_NillyHub.bat`. An internet connection is required to download the suite. MIT licensed.
+          NOTES
+          if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > "$out/status"; then
+            test "$(cat "$out/status")" = true
+          else
+            exit 1
+          fi
+          gh release upload "$RELEASE_TAG" "$out/$RELEASE_ZIP" "$out/SHA256SUMS.txt" --clobber
+          gh release edit "$RELEASE_TAG" --target "$SOURCE_SHA" --draft=false --latest --title "$RELEASE_NAME" --notes-file "$out/notes.md"
+          gh release view "$RELEASE_TAG" --json isDraft,url,assets
