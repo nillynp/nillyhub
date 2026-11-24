@@ -1,6 +1,6 @@
 # NillyHub — Nilly Suite για Windows 10/11
 
-**[Δημόσια έκδοση v1.6.2 · Public release](https://github.com/nillynp/nillyhub/releases/tag/v1.6.2)**
+**[Δημόσια έκδοση v1.6.3 · Public release](https://github.com/nillynp/nillyhub/releases/tag/v1.6.3)**
 
 Δωρεάν, πανάλαφρος launcher & updater για όλη τη Nilly Suite, με άδεια MIT (0 εξωτερικά DLLs, 0 MB RAM όταν είναι κλειστό).
 
@@ -18,7 +18,7 @@
 
 ## Εγκατάσταση σε ΟΠΟΙΟΔΗΠΟΤΕ Windows 10/11 PC (100% Portable · Χωρίς Admin)
 
-1. Κατέβασε το **`NillyHub-v1.6.2-Portable.zip`** και αποσυμπίεσέ το όπου θες (π.χ. `C:\Tools\NillySuite\NillyHub`).
+1. Κατέβασε το **`NillyHub-v1.6.3-Portable.zip`** και αποσυμπίεσέ το όπου θες (π.χ. `C:\Tools\NillySuite\NillyHub`).
 2. Τρέξε με διπλό κλικ το **`Install_NillyHub.bat`** *(δεν απαιτεί δικαιώματα Administrator!)*.
    - Μεταγλωττίζει αυτόματα το 100% native **`NillyHub.exe` (~62 KB)** με 0 εξωτερικά DLLs.
    - Φτιάχνει συντομεύσεις σε Επιφάνεια Εργασίας & Start Menu — και από μέσα εγκαθιστάς με 1 κλικ όποια από τα 11 δωρεάν εργαλεία θέλεις!

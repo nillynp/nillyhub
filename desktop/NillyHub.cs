@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.2.0")]
-[assembly: AssemblyFileVersion("1.6.2.0")]
+[assembly: AssemblyVersion("1.6.3.0")]
+[assembly: AssemblyFileVersion("1.6.3.0")]
 
 namespace NillyHub
 {
@@ -1601,12 +1601,12 @@ namespace NillyHub
             if (bi != _lastTipZone && _tip != null)
             {
                 _lastTipZone = bi;
-                if (bi == 0) _tip.SetToolTip(this, App.IsInstalled ? "Άνοιγμα" : "Εγκατάσταση (0€)");
-                else if (bi == 1) _tip.SetToolTip(this, App.HasUpdate ? "Ενημέρωση" : "Έλεγχος Update");
+                if (bi == 0) _tip.SetToolTip(this, App.IsInstalled ? "Άνοιγμα" : "Εγκατάσταση");
+                else if (bi == 1) _tip.SetToolTip(this, App.HasUpdate ? "Ενημέρωση" : "Update");
                 else if (bi == 2) _tip.SetToolTip(this, "Φάκελος");
-                else if (bi == 3) _tip.SetToolTip(this, "Ιστοσελίδα");
-                else if (bi == 4) _tip.SetToolTip(this, "Σύγκριση Windows");
-                else _tip.SetToolTip(this, App.IsInstalled ? "Κλικ για άνοιγμα" : "Κλικ για εγκατάσταση");
+                else if (bi == 3) _tip.SetToolTip(this, "Σελίδα");
+                else if (bi == 4) _tip.SetToolTip(this, "Σύγκριση");
+                else _tip.SetToolTip(this, "");
             }
             base.OnMouseMove(e);
         }
