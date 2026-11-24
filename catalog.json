@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "suiteSizeLabel": "1,3 MB",
+  "suiteSizeLabel": "1,35 MB",
   "apps": [
     {
       "id": "nillyview",
@@ -167,6 +167,20 @@
       "icon": "NillyZipPro.ico",
       "repo": "nillyzip-pro",
       "prefix": "NillyZip-Pro",
+      "site": "https://nillygraphics.com/",
+      "accent": "#66D9EF"
+    },
+    {
+      "id": "nillysearch",
+      "name": "NillySearch Pro",
+      "tag": "Instant Search",
+      "desc": "Αστραπιαία αναζήτηση αρχείων Win32 (Everything / Windows Search alternative, 0 MB idle RAM)",
+      "folder": "NillySearchPro",
+      "launch": "NillySearchPro.exe",
+      "process": "NillySearchPro",
+      "icon": "NillySearchPro.ico",
+      "repo": "nillysearch-pro",
+      "prefix": "NillySearch-Pro",
       "site": "https://nillygraphics.com/",
       "accent": "#66D9EF"
     }
