@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.11.0")]
-[assembly: AssemblyFileVersion("1.6.11.0")]
+[assembly: AssemblyVersion("1.6.12.0")]
+[assembly: AssemblyFileVersion("1.6.12.0")]
 
 namespace NillyHub
 {
@@ -2033,6 +2033,7 @@ namespace NillyHub
             CreateTilesOnce();
             LoadInstantCache();
             ApplyFilters();
+            _dark = ReadSuiteDark(true);
             ApplyTheme();
 
             if (!smokeMode)
@@ -2091,7 +2092,7 @@ namespace NillyHub
             _lblCount = new Label { Left = 41, Top = 20, Width = 134, Height = 14, Font = FontSub, Text = "Nilly graphics Suite", UseMnemonic = false };
             _leftBrand.Controls.AddRange(new Control[] { picLogo, _lblTitle, _lblCount });
 
-            _btnTheme = MkPill("Light", 48, delegate { _dark = !_dark; ApplyTheme(); });
+            _btnTheme = MkPill("Light", 48, delegate { _dark = !_dark; SaveSuiteDark(_dark); ApplyTheme(); });
             _btnWinSwap = MkPill("⇄ Windows", 92, delegate { OpenWindowsSwitchWizard(); });
             _btnSuiteAll = MkPill("⇄ Σουίτα & Win Defaults", 174, delegate { InstallOrUpdateFullSuite(); });
             _btnCheck = MkPill("↻ Sync", 62, delegate { CheckGitHubUpdatesAsync(true); });
@@ -2315,6 +2316,33 @@ namespace NillyHub
             b.Margin = new Padding(3, 1, 3, 0);
             b.Click += onClick;
             return b;
+        }
+
+        private static bool ReadSuiteDark(bool fallback)
+        {
+            try
+            {
+                string p = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"NillySuite\suite.theme");
+                if (File.Exists(p))
+                {
+                    string s = File.ReadAllText(p, Encoding.ASCII).Trim();
+                    if (s.Equals("light", StringComparison.OrdinalIgnoreCase)) return false;
+                    if (s.Equals("dark", StringComparison.OrdinalIgnoreCase)) return true;
+                }
+            }
+            catch { }
+            return fallback;
+        }
+
+        private static void SaveSuiteDark(bool isDark)
+        {
+            try
+            {
+                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NillySuite");
+                Directory.CreateDirectory(dir);
+                File.WriteAllText(Path.Combine(dir, "suite.theme"), isDark ? "dark" : "light", Encoding.ASCII);
+            }
+            catch { }
         }
 
         public void ApplyTheme()
