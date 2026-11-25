@@ -1295,7 +1295,7 @@ namespace NillyHub
 
         public static void InstallOrUpdate(SuiteApp app, Action<string> onProgress)
         {
-            InstallOrUpdate(app, onProgress, null);
+            InstallOrUpdateInteractive(app, onProgress, null);
         }
 
         private static bool IsTrayUtility(string processName)
@@ -1332,7 +1332,7 @@ namespace NillyHub
             return true;
         }
 
-        public static void InstallOrUpdate(SuiteApp app, Action<string> onProgress, Func<bool> confirmCloseRunning)
+        public static void InstallOrUpdateInteractive(SuiteApp app, Action<string> onProgress, Func<bool> confirmCloseRunning)
         {
             string temp = Path.Combine(Path.GetTempPath(), "NillyHub-" + Guid.NewGuid().ToString("N"));
             string zip = Path.Combine(temp, "portable.zip");
@@ -2945,7 +2945,7 @@ namespace NillyHub
                 bool canceled = false;
                 try
                 {
-                    SuiteCatalog.InstallOrUpdate(app, delegate(string msg)
+                    SuiteCatalog.InstallOrUpdateInteractive(app, delegate(string msg)
                     {
                         try { BeginInvoke((Action)delegate { _lblStatus.Text = msg; }); } catch { }
                     }, delegate()
