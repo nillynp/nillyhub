@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.10.0")]
-[assembly: AssemblyFileVersion("1.6.10.0")]
+[assembly: AssemblyVersion("1.6.11.0")]
+[assembly: AssemblyFileVersion("1.6.11.0")]
 
 namespace NillyHub
 {
@@ -1849,9 +1849,11 @@ namespace NillyHub
 
             Label lblBrand = new Label
             {
-                Left = 386, Top = 356, Width = 148, Height = 20, Font = new Font("Segoe UI", 7.8f),
-                ForeColor = orange, TextAlign = ContentAlignment.MiddleRight, Text = "Nilly graphics · 0€ MIT"
+                Left = 386, Top = 356, Width = 148, Height = 20, Font = new Font("Segoe UI", 7.8f, FontStyle.Underline),
+                ForeColor = orange, TextAlign = ContentAlignment.MiddleRight, Cursor = Cursors.Hand,
+                Text = "Όροι & Άδεια (0€ MIT)"
             };
+            lblBrand.Click += delegate { try { Process.Start(new ProcessStartInfo("https://nillygraphics.com/terms-and-conditions/el/#free-software") { UseShellExecute = true }); } catch { } };
 
             Button btnClose = new Button
             {
@@ -2125,8 +2127,12 @@ namespace NillyHub
             _sharedTip.SetToolTip(_btnHubUpd, "Αυτόματη SHA-256 ενημέρωση του NillyHub από GitHub");
             _lblCredit = new Label { Dock = DockStyle.Right, Width = 365, TextAlign = ContentAlignment.MiddleRight, Font = FontFooter, Cursor = Cursors.Hand, UseMnemonic = false, Text = "created by Nilly graphics (Sotiris Christos) · nillygraphics.com" };
             _lblCredit.Click += delegate { try { Process.Start(new ProcessStartInfo("https://nillygraphics.com/") { UseShellExecute = true }); } catch { } };
+            Label lblTerms = new Label { Name = "lblTerms", Dock = DockStyle.Right, Width = 148, TextAlign = ContentAlignment.MiddleRight, Font = FontFooter, Cursor = Cursors.Hand, UseMnemonic = false, ForeColor = Color.FromArgb(142, 150, 165), Text = "Όροι & Άδεια (MIT)" };
+            lblTerms.Click += delegate { try { Process.Start(new ProcessStartInfo("https://nillygraphics.com/terms-and-conditions/el/#free-software") { UseShellExecute = true }); } catch { } };
+            _sharedTip.SetToolTip(lblTerms, "Όροι Χρήσης, Άδεια MIT (0€) & Πολιτική Απορρήτου — nillygraphics.com");
             _footer.Controls.Add(_lblStatus);
             _footer.Controls.Add(_btnHubUpd);
+            _footer.Controls.Add(lblTerms);
             _footer.Controls.Add(_lblCredit);
 
             // Flicker-free Double-Buffered Square Grid (docked Fill — MUST be z-index 0 so NOTHING clips Row 1!)
@@ -2223,6 +2229,7 @@ namespace NillyHub
                 _txtSearch.SetBounds(lx, y3 + 1, searchW, 24);
             }
             if (_lblCredit != null) _lblCredit.Visible = (w >= 620);
+            if (_footer != null && _footer.Controls["lblTerms"] != null) _footer.Controls["lblTerms"].Visible = (w >= 760);
         }
 
         private void LayoutGridPadding()

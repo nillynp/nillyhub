@@ -1,58 +1,59 @@
-# NillyHub — Nilly Suite για Windows 10/11
+# NillyHub — All-in-One Launcher & Live GitHub Auto-Updater for NillyGraphics Suite (18 Free Tools)
 
-**[Δημόσια έκδοση v1.6.3 · Public release](https://github.com/nillynp/nillyhub/releases/tag/v1.6.3)**
+> **Ένας πανάλαφρος (`~55 KB` ZIP!) κεντρικός Launcher & Auto-Updater για ΟΛΑ τα 18 δωρεάν Windows 10/11 εργαλεία της NillyGraphics Suite — μόλις `1,47 MB` σύνολο αντί ~6 GB βαριών εφαρμογών Windows & Adobe (`99,98%` ελαφρύτερα), με `0 MB` background RAM, `0` τηλεμετρία, SHA-256 επαλήθευση και ασφαλή 1-κλικ αντικατάσταση προεπιλογών Windows!**
+>
+> **created by [Nilly graphics (Nillygraphics · Sotiris Christos)](https://nillygraphics.com/)**
 
-Δωρεάν, πανάλαφρος launcher & updater για όλη τη Nilly Suite, με άδεια MIT (0 εξωτερικά DLLs, 0 MB RAM όταν είναι κλειστό).
+---
 
-- **Αυτόματη Ανακάλυψη Νέων Εργαλείων & Πραγματικά Εικονίδια (`catalog.json` + `.iconcache`):** κάθε νέο εργαλείο (π.χ. **NillyZip Pro**, **NillySearch Pro** και όσα ακολουθήσουν!) εμφανίζεται αυτόματα στο NillyHub με το πραγματικό του `.ico` εικονίδιο ακόμα και πριν εγκατασταθεί.
-- **Αναλυτική Σύγκριση Πόρων (`ⓘ` σε κάθε κάρτα):** πάτα το `ⓘ` σε οποιαδήποτε εφαρμογή για να δεις αναλυτικό πίνακα σύγκρισης με τις default/βαριές εφαρμογές των Windows (**Χώρος Δίσκου · Ενεργή & Idle RAM · CPU & GPU φόρτος · Background Services · Ιδιωτικότητα**).
-- Άνοιξε τα εργαλεία, επίλεξε μεμονωμένη εγκατάσταση ή χρησιμοποίησε το κουμπί «Όλη η Σουίτα» — ή δεξί κλικ σε κάθε κάρτα για άνοιγμα / ενημέρωση / φάκελο / σύγκριση / απεγκατάσταση.
-- **Ενσωματωμένο Self-Update (SHA-256):** το ίδιο το NillyHub ελέγχει αυτόματα για νεότερη έκδοση χωρίς extra API calls και ενημερώνεται με 1 κλικ.
-- **Αυτόματος Εντοπισμός Τοπικών Εργαλείων:** αναγνωρίζει εγκαταστάσεις στο `%LOCALAPPDATA%\NillySuite`, στο Windows Registry και από συντομεύσεις (Desktop & Start Menu) / διπλανούς φακέλους.
-- **ETag Cache (`304 Not Modified`) & Άμεση Εκκίνηση:** φορτώνει άμεσα από τοπική cache χωρίς να σπαταλάει το GitHub API rate limit.
-- **Επαληθευμένες Ενημερώσεις (SHA-256 + Αυτόματο Rollback):** ελέγχει μέγεθος & SHA-256 κάθε portable ZIP, κρατάει προσωρινό backup επαναφοράς σε περίπτωση σφάλματος και το καθαρίζει αυτόματα μόλις ολοκληρωθεί επιτυχώς η ενημέρωση.
-- Το «⇄ Windows» ανοίγει τις Προεπιλεγμένες εφαρμογές ή τις ρυθμίσεις Προχείρου για χειροκίνητη επιλογή ιστορικού και συγχρονισμού.
-- Συντομεύσεις: `Ctrl+F` για άμεση αναζήτηση, `Esc` για καθαρισμό φίλτρου.
+## Σύγκριση
 
-Η μπάρα σύγκρισης δείχνει **99,98% πιο ελαφριά (`~1,35 MB` ZIP για όλη τη σουίτα vs `~6 GB` αντίστοιχων εφαρμογών Windows & Adobe)** (έκδοση 1.6). Τα μεγέθη μεταβάλλονται με τα releases.
+| App Hub / Launcher | Μέγεθος στον δίσκο | Background RAM | 1-Click Install, Update & Default Swap | Τηλεμετρία | Τιμή |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| Adobe Creative Cloud + Win11 Bloat | **~6.000 MB (~6 GB)** | **350–650+ MB (μόνιμα)** | Ναι | Ναι | Συνδρομές / Bloat |
+| **NillyHub + 18 Εργαλεία** | **1,47 MB σύνολο** (`55 KB` Hub) | **0 MB RAM · 0% CPU** | **Ναι (Live GitHub SHA-256 + `⇄` Default)** | **Μηδέν (100% τοπικό)** | **0 € (MIT)** |
 
-## Εγκατάσταση σε ΟΠΟΙΟΔΗΠΟΤΕ Windows 10/11 PC (100% Portable · Χωρίς Admin)
+---
 
-1. Κατέβασε το **`NillyHub-v1.6.3-Portable.zip`** και αποσυμπίεσέ το όπου θες (π.χ. `C:\Tools\NillySuite\NillyHub`).
-2. Τρέξε με διπλό κλικ το **`Install_NillyHub.bat`** *(δεν απαιτεί δικαιώματα Administrator!)*.
-   - Μεταγλωττίζει αυτόματα το 100% native **`NillyHub.exe` (~62 KB)** με 0 εξωτερικά DLLs.
-   - Φτιάχνει συντομεύσεις σε Επιφάνεια Εργασίας & Start Menu — και από μέσα εγκαθιστάς με 1 κλικ όποια από τα 11 δωρεάν εργαλεία θέλεις!
+## Εγκατάσταση σε ΟΠΟΙΟΔΗΠΟΤΕ Windows 10/11 PC (100% Portable · Zero Admin)
+
+1. Κατέβασε το **`NillyHub-v1.6.10-Portable.zip`** (`55,4 KB`) από τα [GitHub Releases](https://github.com/nillynp/nillyhub/releases/latest) ή το [nillygraphics.com/product/nillyhub/el/](https://nillygraphics.com/product/nillyhub/el/).
+2. Αποσυμπίεσέ το και τρέξε το **`Install_NillyHub.bat`** *(δεν απαιτεί δικαιώματα Administrator!)*.
+3. Από μέσα εγκαθιστάς, ανοίγεις ή ενημερώνεις με 1 κλικ όποια από τα **18 δωρεάν εργαλεία** θέλεις (με αυτόματο έλεγχο **SHA-256**).
 
 ### Απεγκατάσταση
-Τρέξε το **`Uninstall_NillyHub.bat`** — αφαιρεί μόνο τις συντομεύσεις του NillyHub χωρίς να αγγίξει τα εγκατεστημένα εργαλεία σου.
+Τρέξε το **`Uninstall_NillyHub.bat`** — αφαιρεί καθαρά τις συντομεύσεις χωρίς να αγγίξει τα αρχεία σου.
 
 ---
 
-## Οικοσύστημα Δωρεάν Εργαλείων Windows — created by Nilly graphics (Nillygraphics · Sotiris Christos)
+## Και τα 18 Δωρεάν Εργαλεία της NillyGraphics Suite
 
-| Εργαλείο | Τι αντικαθιστά | Μέγεθος | Σύνδεσμος |
+| Εργαλείο | Τι αντικαθιστά | Μέγεθος ZIP | Σελίδα & GitHub |
 | :--- | :--- | :---: | :--- |
-| **NillyClip Pro** | Clipboard history και κλειδοθήκη | ~62 KB | [GitHub](https://github.com/nillynp/nillyclip-pro) |
-| **NillyHub** | All-in-One Nilly Suite Launcher & Auto-Updater | ~62 KB | [GitHub](https://github.com/nillynp/nillyhub) |
-| **NillyDisk Pro** | TreeSize / WinDirStat / Duplicate Finder / Cache Cleaner | ~79 KB | [GitHub](https://github.com/nillynp/nillydisk-pro) |
-| **NillyNote Pro** | Windows Notepad (18 MB) | ~78 KB | [GitHub](https://github.com/nillynp/nillynote-pro) |
-| **NillyCode Pro** | Sublime Text (58 MB) | ~104 KB | [GitHub](https://github.com/nillynp/nillycode-pro) |
-| **NillyCalc Pro** | Windows Calculator (18 MB) | ~72 KB | [GitHub](https://github.com/nillynp/nillycalc-pro) |
-| **NillyBatch Pro** | Adobe Bridge (1.95 GB) | ~66 KB | [GitHub](https://github.com/nillynp/nillybatch-pro) |
-| **NillyMedia Lite** | Windows Media Player & Voice Recorder (46 MB) | ~52 KB | [GitHub](https://github.com/nillynp/nillymedia-lite) |
-| **NillyQuickSnap** | Windows Snipping Tool (586 MB) | ~49 KB | [GitHub](https://github.com/nillynp/nillyquicksnap) |
-| **NillyView Pro** | Windows Photos & Paint | ~48 KB | [GitHub](https://github.com/nillynp/nillyview-pro) |
-| **NillyDoc Pro** | Heavy PDF Viewers / Editors | ~2 MB | [GitHub](https://github.com/nillynp/nillydoc-pro) |
-| **PC Manager & Tools** | All-in-One Studio & PC Maintenance Suite | Portable | [GitHub](https://github.com/nillynp/nilly-pc-manager-tools) |
+| **NillyHub** | All-in-One Launcher & Auto-Updater (`18 tools`) | `55,4 KB` | [nillygraphics.com](https://nillygraphics.com/product/nillyhub/el/) · [GitHub](https://github.com/nillynp/nillyhub) |
+| **NillyFiles Pro** | Windows 11 File Explorer (`Tabs & Dual-Pane`, δεν αγγίζει `explorer.exe`) | `46,2 KB` | [GitHub](https://github.com/nillynp/nillyfiles-pro) |
+| **NillyTask Pro** | Windows 11 Task Manager (`<50ms`, Startup, Ανάσα RAM, Live Μπαταρία) | `38,2 KB` | [GitHub](https://github.com/nillynp/nillytask-pro) |
+| **NillyUninstall Pro** | Windows 11 Installed Apps & Ασφαλής Αφαίρεση Bloat (1-κλικ Store restore) | `40,9 KB` | [GitHub](https://github.com/nillynp/nillyuninstall-pro) |
+| **NillyNet Pro** | Network Monitor, Wi-Fi 2.4/5/6 GHz Analyzer, Κωδικοί Wi-Fi & 1-κλικ DNS | `41,4 KB` | [GitHub](https://github.com/nillynp/nillynet-pro) |
+| **NillyFont Pro** | Windows 11 Fonts / FontBase (0 lag σε 1.600+ fonts, Φίλτρο Ελληνικών, A/B) | `31,7 KB` | [GitHub](https://github.com/nillynp/nillyfont-pro) |
+| **NillyView Pro** | Windows Photos (`881 MB`) & Paint (`417 MB`) — 65+ Image & RAW formats | `62,1 KB` | [nillygraphics.com](https://nillygraphics.com/nillyview-pro/) · [GitHub](https://github.com/nillynp/nillyview-pro) |
+| **NillyDoc Pro** | Adobe Acrobat (`~2,5 GB`) / PDFgear — Spread View, Inline Edit & 5-Tier Compress | `678 KB` | [nillygraphics.com](https://nillygraphics.com/nillydoc-pro/) · [GitHub](https://github.com/nillynp/nillydoc-pro) |
+| **NillyNote Pro** | Windows 11 Notepad (`UWP + Copilot`) — Καρτέλες, Auto-Session & Checklists | `40,7 KB` | [nillygraphics.com](https://nillygraphics.com/product/nillynote-pro/el/) · [GitHub](https://github.com/nillynp/nillynote-pro) |
+| **NillyCode Pro** | VS Code (`~450 MB`) / Sublime Text — Native Monokai, Minimap & Diff | `50,6 KB` | [nillygraphics.com](https://nillygraphics.com/product/nillycode-pro/el/) · [GitHub](https://github.com/nillynp/nillycode-pro) |
+| **NillyCalc Pro** | Windows 11 Calculator — DPI/Print, CMYK/HEX, Πιπέτα, ΦΠΑ/m² & `↗ NillyNote` | `41,0 KB` | [nillygraphics.com](https://nillygraphics.com/product/nillycalc-pro/el/) · [GitHub](https://github.com/nillynp/nillycalc-pro) |
+| **NillyBatch Pro** | Adobe Bridge (`~1,95 GB`) — Μαζικό Resize, WebP, Watermark & Greeklish SEO | `38,0 KB` | [nillygraphics.com](https://nillygraphics.com/product/nillybatch-pro/el/) · [GitHub](https://github.com/nillynp/nillybatch-pro) |
+| **NillyMedia Lite** | Windows Media Player & Sound Recorder — Player & 1-κλικ WAV Recorder | `32,0 KB` | [nillygraphics.com](https://nillygraphics.com/product/nillymedia-lite/el/) · [GitHub](https://github.com/nillynp/nillymedia-lite) |
+| **NillyQuickSnap** | Windows 11 Snipping Tool (`533 MB`) — Screenshot, Pixel Ruler & Privacy Blur | `33,5 KB` | [nillygraphics.com](https://nillygraphics.com/product/nillyquicksnap/el/) · [GitHub](https://github.com/nillynp/nillyquicksnap) |
+| **NillyDisk Pro** | Storage Sense / TreeSize / CCleaner — Disk Treemap & SHA-256 Διπλότυπα | `44,2 KB` | [nillygraphics.com](https://nillygraphics.com/product/nillydisk-pro/el/) · [GitHub](https://github.com/nillynp/nillydisk-pro) |
+| **NillyClip Pro** | Windows Cloud Clipboard / Vaults — 100% Τοπικό History & AES-256 + DPAPI Vault | `47,0 KB` | [nillygraphics.com](https://nillygraphics.com/product/nillyclip-pro/el/) · [GitHub](https://github.com/nillynp/nillyclip-pro) |
+| **NillyZip Pro** | WinRAR (popups) / PeaZip — Native ZIP, RAR, 7Z & TAR | `39,1 KB` | [nillygraphics.com](https://nillygraphics.com/product/nillyzip-pro/el/) · [GitHub](https://github.com/nillynp/nillyzip-pro) |
+| **NillySearch Pro** | Windows SearchHost + Indexer (`350 MB RAM`) — Ακαριαία Αναζήτηση (0 services) | `36,4 KB` | [nillygraphics.com](https://nillygraphics.com/product/nillysearch-pro/el/) · [GitHub](https://github.com/nillynp/nillysearch-pro) |
+| **PC Manager & Tools** | Microsoft PC Manager / CPU-Z / Battery Report — 17 εργαλεία, QR/EAN-13 & Specs | `160,8 KB` | [nillygraphics.com](https://nillygraphics.com/nilly-pc-manager-tools/el/) · [GitHub](https://github.com/nillynp/nilly-pc-manager-tools) |
 
 ---
 
-## Author, Credits & SEO
-
-- **Created by:** **[Nilly graphics (Nillygraphics · Sotiris Christos)](https://nillygraphics.com/)**
-- **Website:** [https://nillygraphics.com/](https://nillygraphics.com/)
-- **GitHub:** [https://github.com/nillynp](https://github.com/nillynp)
-- **License:** MIT License — 100% Free & Open Source (0€)
-
-> **English Summary:** **NillyHub** is a free, ultra-lightweight (~62 KB), open-source native Windows 10/11 app launcher and live GitHub auto-updater for the entire Nilly graphics Suite (1-click install, 1-click update, automatic discovery of new tools, 0 MB background RAM) — **created by Nilly graphics (Nillygraphics · Sotiris Christos)** ([nillygraphics.com](https://nillygraphics.com/)).
-> **Keywords:** `NillyHub`, `Nilly Suite`, `Nilly graphics`, `Nillygraphics`, `Sotiris Christos`, `nillygraphics.com`, `free Windows 11 software suite`, `lightweight app launcher`, `GitHub auto updater`, `portable Windows utilities`, `Adobe Creative Cloud lightweight alternative`
+## Όροι Χρήσης, Άδεια MIT & Απόρρητο
+- **Άδεια:** 100% Δωρεάν (`0 €`) υπό **Άδεια MIT** (προσωπική & επαγγελματική χρήση) — βλ. `LICENSE` & `TERMS_AND_LICENSE.txt`.
+- **Απόρρητο:** 100% τοπική εκτέλεση, **0 τηλεμετρία**, **0 MB background RAM** όταν κλείσει. (Το `NillyHub` ελέγχει προαιρετικά μόνο για ενημερώσεις στο `github.com/nillynp`.)
+- **Όροι Χρήσης & Πολιτική Απορρήτου:** [nillygraphics.com/terms-and-conditions/el/#free-software](https://nillygraphics.com/terms-and-conditions/el/#free-software) · [nillygraphics.com/privacy-policy/el/](https://nillygraphics.com/privacy-policy/el/)
+- **Δημιουργός:** **[Nilly graphics (Sotiris Christos)](https://nillygraphics.com/)** · `info@nillygraphics.com`
