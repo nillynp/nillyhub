@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.3.0")]
-[assembly: AssemblyFileVersion("1.6.3.0")]
+[assembly: AssemblyVersion("1.6.4.0")]
+[assembly: AssemblyFileVersion("1.6.4.0")]
 
 namespace NillyHub
 {
@@ -1251,6 +1251,20 @@ namespace NillyHub
                     for (int p = 0; p < count; p++) processes[p].Dispose();
                     if (count != 0)
                         throw new InvalidOperationException("Κλείσε πρώτα το " + app.DisplayName + " για να κρατήσεις τις αλλαγές σου.");
+                }
+                if (portableLauncher)
+                {
+                    // PC Manager runs inside powershell.exe (PCManagerLite.ps1) — close it cleanly before swapping its folder!
+                    if (onProgress != null) onProgress("Έλεγχος ανοιχτού " + app.DisplayName + "...");
+                    try
+                    {
+                        ProcessStartInfo kpsi = new ProcessStartInfo("powershell.exe",
+                            "-NoProfile -ExecutionPolicy Bypass -Command \"Get-CimInstance Win32_Process -Filter \\\"Name='powershell.exe'\\\" | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*PCManagerLite.ps1*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }\"");
+                        kpsi.UseShellExecute = false; kpsi.CreateNoWindow = true;
+                        using (Process kp = Process.Start(kpsi)) { if (kp != null) kp.WaitForExit(5000); }
+                        Thread.Sleep(250);
+                    }
+                    catch { }
                 }
 
                 string suiteRoot = DetectSuiteRoot();
