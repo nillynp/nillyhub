@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.7.0")]
-[assembly: AssemblyFileVersion("1.6.7.0")]
+[assembly: AssemblyVersion("1.6.8.0")]
+[assembly: AssemblyFileVersion("1.6.8.0")]
 
 namespace NillyHub
 {
@@ -44,10 +44,17 @@ namespace NillyHub
         [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
         [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
         [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int sz);
+        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)] private static extern int SetWindowTheme(IntPtr hWnd, string app, string id);
         [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
         [DllImport("kernel32.dll")] private static extern bool SetProcessWorkingSetSize(IntPtr hProcess, IntPtr minSize, IntPtr maxSize);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, string lParam);
+
+        public static void SetDarkScrollbars(Control c, bool dark)
+        {
+            if (c == null || !c.IsHandleCreated) return;
+            try { SetWindowTheme(c.Handle, dark ? "DarkMode_Explorer" : "Explorer", null); } catch { }
+        }
 
         public static void SetDarkTitlebar(IntPtr hwnd, bool dark)
         {
@@ -666,6 +673,9 @@ namespace NillyHub
             { "nillysearch-pro", "NillySearch-Pro" },
             { "nillytask-pro", "NillyTask-Pro" },
             { "nillyfiles-pro", "NillyFiles-Pro" },
+            { "nillyuninstall-pro", "NillyUninstall-Pro" },
+            { "nillynet-pro", "NillyNet-Pro" },
+            { "nillyfont-pro", "NillyFont-Pro" },
             { "nillyhub", "NillyHub" }
         };
 
@@ -911,6 +921,9 @@ namespace NillyHub
             list.Add(Make("nillysearch", "NillySearch Pro", "Instant Search", "Αστραπιαία αναζήτηση αρχείων Win32 (0 MB idle RAM)", "NillySearchPro", "NillySearchPro.exe", "NillySearchPro", "NillySearchPro.ico", "nillysearch-pro", "https://nillygraphics.com/", Color.FromArgb(102, 217, 239)));
             list.Add(Make("nillytask", "NillyTask Pro", "Task Manager", "Πανάλαφρος Native Task Manager, Live CPU/RAM Γραφήματα & Ανάσα RAM", "NillyTaskPro", "NillyTaskPro.exe", "NillyTaskPro", "NillyTaskPro.ico", "nillytask-pro", "https://nillygraphics.com/", Color.FromArgb(166, 226, 46)));
             list.Add(Make("nillyfiles", "NillyFiles Pro", "File Explorer", "Πανάλαφρος Native File Explorer με Καρτέλες, Διπλό Παράθυρο & 0 MB Idle RAM", "NillyFilesPro", "NillyFilesPro.exe", "NillyFilesPro", "NillyFilesPro.ico", "nillyfiles-pro", "https://nillygraphics.com/", Color.FromArgb(252, 150, 31)));
+            list.Add(Make("nillyuninstall", "NillyUninstall Pro", "Uninstaller & Debloat", "Πανάλαφρος Uninstaller, Ασφαλής Αφαίρεση Win11 Bloat & Leftovers", "NillyUninstallPro", "NillyUninstallPro.exe", "NillyUninstallPro", "NillyUninstallPro.ico", "nillyuninstall-pro", "https://nillygraphics.com/", Color.FromArgb(249, 38, 114)));
+            list.Add(Make("nillynet", "NillyNet Pro", "Network & Wi-Fi", "Ζωντανή Κίνηση Δικτύου, TCP/UDP ανά εφαρμογή, Κωδικοί Wi-Fi & DNS", "NillyNetPro", "NillyNetPro.exe", "NillyNetPro", "NillyNetPro.ico", "nillynet-pro", "https://nillygraphics.com/", Color.FromArgb(102, 217, 239)));
+            list.Add(Make("nillyfont", "NillyFont Pro", "Fonts & Greek", "Πανάλαφρος Font Manager, Live Δοκιμή & Φίλτρο Ελληνικών", "NillyFontPro", "NillyFontPro.exe", "NillyFontPro", "NillyFontPro.ico", "nillyfont-pro", "https://nillygraphics.com/", Color.FromArgb(166, 226, 46)));
             return list;
         }
 
@@ -1938,6 +1951,7 @@ namespace NillyHub
         private Bitmap _hubLogoBmp;
 
         private Label _suiteBar;
+        private Panel _leftBrand;
         private Panel _header;
         private Label _lblTitle, _lblCount;
         private TextBox _txtSearch;
@@ -1959,10 +1973,17 @@ namespace NillyHub
             for (int i = 0; i < _apps.Count; i++) SuiteCatalog.RefreshLocalState(_apps[i], _suiteRoot);
 
             Text = "NillyHub — Nilly graphics";
-            int maxH = 744;
-            try { maxH = Math.Min(744, Math.Max(520, Screen.PrimaryScreen.WorkingArea.Height - 40)); } catch { }
-            Size = new Size(1018, maxH);
-            MinimumSize = new Size(440, 400);
+            int maxH = 760;
+            int initW = 1140;
+            try
+            {
+                Rectangle wa = Screen.PrimaryScreen.WorkingArea;
+                maxH = Math.Min(760, Math.Max(520, wa.Height - 48));
+                initW = Math.Min(1160, Math.Max(780, wa.Width - 60));
+            }
+            catch { }
+            Size = new Size(initW, maxH);
+            MinimumSize = new Size(460, 420);
             StartPosition = FormStartPosition.CenterScreen;
             KeyPreview = true;
 
@@ -2028,27 +2049,21 @@ namespace NillyHub
             };
             _sharedTip.SetToolTip(_suiteBar, "~6 GB → 1,35 MB · 0€ MIT");
 
-            // Main Header Bar (docked cleanly directly below _suiteBar: y = 28..82)
-            _header = new Panel { Dock = DockStyle.Top, Height = 54, Padding = new Padding(14, 10, 14, 10) };
+            // Responsive Header Bar (auto-adapts cleanly across 1-row, 2-row, or 3-row widths — NEVER clips NillyHub!)
+            _header = new Panel { Dock = DockStyle.Top, Height = 56 };
 
-            Panel leftBrand = new Panel { Dock = DockStyle.Left, Width = 175 };
+            _leftBrand = new Panel { Location = new Point(14, 11), Size = new Size(160, 34) };
             PictureBox picLogo = new PictureBox { Left = 0, Top = 1, Width = 32, Height = 32, Image = _hubLogoBmp, SizeMode = PictureBoxSizeMode.Zoom };
-            _lblTitle = new Label { Left = 40, Top = 0, Width = 130, Height = 20, Font = FontBrand, Text = "NillyHub", UseMnemonic = false };
-            _lblCount = new Label { Left = 41, Top = 20, Width = 134, Height = 14, Font = FontSub, Text = "Nilly graphics Suite", UseMnemonic = false };
-            leftBrand.Controls.AddRange(new Control[] { picLogo, _lblTitle, _lblCount });
+            _lblTitle = new Label { Left = 40, Top = 0, Width = 118, Height = 20, Font = FontBrand, Text = "NillyHub", UseMnemonic = false };
+            _lblCount = new Label { Left = 41, Top = 20, Width = 118, Height = 14, Font = FontSub, Text = "Nilly graphics Suite", UseMnemonic = false };
+            _leftBrand.Controls.AddRange(new Control[] { picLogo, _lblTitle, _lblCount });
 
-            FlowLayoutPanel rightBar = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Right, Width = 876, FlowDirection = FlowDirection.RightToLeft,
-                WrapContents = false, Padding = new Padding(0, 3, 0, 0)
-            };
-
-            _btnTheme = MkPill("Light", 46, delegate { _dark = !_dark; ApplyTheme(); });
+            _btnTheme = MkPill("Light", 48, delegate { _dark = !_dark; ApplyTheme(); });
             _btnWinSwap = MkPill("⇄ Windows", 92, delegate { OpenWindowsSwitchWizard(); });
             _btnSuiteAll = MkPill("⇄ Σουίτα & Win Defaults", 174, delegate { InstallOrUpdateFullSuite(); });
             _btnCheck = MkPill("↻ Sync", 62, delegate { CheckGitHubUpdatesAsync(true); });
 
-            _txtSearch = new TextBox { Width = 120, Height = 26, BorderStyle = BorderStyle.FixedSingle, Font = FontInput, Margin = new Padding(4, 2, 4, 0) };
+            _txtSearch = new TextBox { Width = 140, Height = 26, BorderStyle = BorderStyle.FixedSingle, Font = FontInput };
             _txtSearch.TextChanged += delegate { ApplyFilters(); };
 
             _btnFUpd = MkPill("Updates", 82, delegate { _filterMode = "updates"; ApplyFilters(); StylePills(); });
@@ -2061,9 +2076,8 @@ namespace NillyHub
             _sharedTip.SetToolTip(_btnTheme, "Dark / Light");
             _sharedTip.SetToolTip(_txtSearch, "Αναζήτηση (Ctrl+F)");
 
-            rightBar.Controls.AddRange(new Control[] { _btnTheme, _btnWinSwap, _btnSuiteAll, _btnCheck, _txtSearch, _btnFUpd, _btnFInst, _btnFAll });
-            _header.Controls.Add(rightBar);
-            _header.Controls.Add(leftBrand);
+            _header.Controls.AddRange(new Control[] { _leftBrand, _btnFAll, _btnFInst, _btnFUpd, _txtSearch, _btnCheck, _btnSuiteAll, _btnWinSwap, _btnTheme });
+            _header.Resize += delegate { LayoutResponsiveHeader(); };
 
             // Minimal Footer (docked at bottom)
             _footer = new Panel { Dock = DockStyle.Bottom, Height = 28, Padding = new Padding(14, 2, 14, 2) };
@@ -2092,13 +2106,106 @@ namespace NillyHub
                 WrapContents = true,
                 Padding = new Padding(18, 14, 14, 14)
             };
+            _grid.HandleCreated += delegate { Native.SetDarkScrollbars(_grid, _dark); };
+            _grid.Resize += delegate { LayoutGridPadding(); };
 
             // CRITICAL WinForms Docking Order: back-to-front!
-            // _suiteBar (backmost, docked 1st at y=0) -> _header (docked 2nd at y=28) -> _footer (bottom) -> _grid (frontmost z=0, Fill between header & footer!)
             Controls.Add(_grid);
             Controls.Add(_footer);
             Controls.Add(_header);
             Controls.Add(_suiteBar);
+
+            Resize += delegate { LayoutResponsiveHeader(); LayoutGridPadding(); };
+            LayoutResponsiveHeader();
+            LayoutGridPadding();
+        }
+
+        private void LayoutResponsiveHeader()
+        {
+            if (_header == null || _leftBrand == null) return;
+            int w = Math.Max(420, _header.ClientSize.Width);
+            int pad = 14, gap = 6;
+            _leftBrand.Location = new Point(pad, 10);
+
+            int actionsW = _btnCheck.Width + _btnSuiteAll.Width + _btnWinSwap.Width + _btnTheme.Width + gap * 3;
+            int filtersW = _btnFAll.Width + _btnFInst.Width + _btnFUpd.Width + gap * 2;
+            int minSingleW = pad + _leftBrand.Width + 14 + filtersW + gap + 120 + gap + actionsW + pad;
+
+            if (w >= minSingleW)
+            {
+                // Wide 1-row sleek header (0 overlap guaranteed!)
+                if (_header.Height != 54) _header.Height = 54;
+                int y = 14;
+                int rx = w - pad;
+                rx -= _btnTheme.Width; _btnTheme.Location = new Point(rx, y); rx -= gap;
+                rx -= _btnWinSwap.Width; _btnWinSwap.Location = new Point(rx, y); rx -= gap;
+                rx -= _btnSuiteAll.Width; _btnSuiteAll.Location = new Point(rx, y); rx -= gap;
+                rx -= _btnCheck.Width; _btnCheck.Location = new Point(rx, y); rx -= (gap + 4);
+
+                int lx = _leftBrand.Right + 12;
+                _btnFAll.Location = new Point(lx, y); lx += _btnFAll.Width + gap;
+                _btnFInst.Location = new Point(lx, y); lx += _btnFInst.Width + gap;
+                _btnFUpd.Location = new Point(lx, y); lx += _btnFUpd.Width + gap;
+
+                int searchW = Math.Max(110, Math.Min(230, rx - lx));
+                _txtSearch.SetBounds(lx, y + 1, searchW, 24);
+            }
+            else if (w >= 585)
+            {
+                // Medium 2-row responsive header (Row 1: Brand + Primary Actions, Row 2: Filters + Full Search)
+                if (_header.Height != 88) _header.Height = 88;
+                int y1 = 13;
+                int rx = w - pad;
+                rx -= _btnTheme.Width; _btnTheme.Location = new Point(rx, y1); rx -= gap;
+                rx -= _btnWinSwap.Width; _btnWinSwap.Location = new Point(rx, y1); rx -= gap;
+                rx -= _btnSuiteAll.Width; _btnSuiteAll.Location = new Point(rx, y1); rx -= gap;
+                rx -= _btnCheck.Width; _btnCheck.Location = new Point(rx, y1);
+
+                int y2 = 52;
+                int lx = pad;
+                _btnFAll.Location = new Point(lx, y2); lx += _btnFAll.Width + gap;
+                _btnFInst.Location = new Point(lx, y2); lx += _btnFInst.Width + gap;
+                _btnFUpd.Location = new Point(lx, y2); lx += _btnFUpd.Width + gap + 4;
+                int searchW = Math.Max(120, (w - pad) - lx);
+                _txtSearch.SetBounds(lx, y2 + 1, searchW, 24);
+            }
+            else
+            {
+                // Compact 3-row mobile-narrow header (fits cleanly down to 460px!)
+                if (_header.Height != 122) _header.Height = 122;
+                int y1 = 12;
+                int rx = w - pad;
+                rx -= _btnTheme.Width; _btnTheme.Location = new Point(rx, y1); rx -= gap;
+                rx -= _btnCheck.Width; _btnCheck.Location = new Point(rx, y1);
+
+                int y2 = 50;
+                int lx = pad;
+                _btnSuiteAll.Location = new Point(lx, y2); lx += _btnSuiteAll.Width + gap;
+                _btnWinSwap.Location = new Point(lx, y2);
+
+                int y3 = 86;
+                lx = pad;
+                _btnFAll.Location = new Point(lx, y3); lx += _btnFAll.Width + gap;
+                _btnFInst.Location = new Point(lx, y3); lx += _btnFInst.Width + gap;
+                _btnFUpd.Location = new Point(lx, y3); lx += _btnFUpd.Width + gap;
+                int searchW = Math.Max(90, (w - pad) - lx);
+                _txtSearch.SetBounds(lx, y3 + 1, searchW, 24);
+            }
+            if (_lblCredit != null) _lblCredit.Visible = (w >= 620);
+        }
+
+        private void LayoutGridPadding()
+        {
+            if (_grid == null) return;
+            int cw = _grid.ClientSize.Width;
+            if (cw <= 100) return;
+            int tileStep = 224; // 212px tile + 12px margin
+            int scrollReserve = _grid.VerticalScroll.Visible ? 18 : 6;
+            int usable = Math.Max(tileStep, cw - scrollReserve);
+            int cols = Math.Max(1, usable / tileStep);
+            int leftPad = Math.Max(14, (usable - cols * tileStep) / 2);
+            if (_grid.Padding.Left != leftPad)
+                _grid.Padding = new Padding(leftPad, 14, 12, 16);
         }
 
         private void CreateTilesOnce()
@@ -2185,6 +2292,7 @@ namespace NillyHub
 
             BackColor = bgMain;
             _grid.BackColor = bgMain;
+            Native.SetDarkScrollbars(_grid, _dark);
             _header.BackColor = bgTop;
             _footer.BackColor = bgTop;
             _suiteBar.BackColor = _dark ? Color.FromArgb(40, 29, 18) : Color.FromArgb(254, 243, 226);
