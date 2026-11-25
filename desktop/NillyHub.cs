@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.5.0")]
-[assembly: AssemblyFileVersion("1.6.5.0")]
+[assembly: AssemblyVersion("1.6.6.0")]
+[assembly: AssemblyFileVersion("1.6.6.0")]
 
 namespace NillyHub
 {
@@ -663,6 +663,8 @@ namespace NillyHub
             { "nilly-pc-manager-tools", "Nilly-PC-Manager-Tools" },
             { "nillyclip-pro", "NillyClip-Pro" },
             { "nillyzip-pro", "NillyZip-Pro" },
+            { "nillysearch-pro", "NillySearch-Pro" },
+            { "nillytask-pro", "NillyTask-Pro" },
             { "nillyhub", "NillyHub" }
         };
 

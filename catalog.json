@@ -274,6 +274,27 @@
       "ramWin": "150–350 MB μόνιμα στη RAM + Bing WebView!",
       "cpuGpuNilly": "0% background CPU/Disk/GPU · 0 ms αναζήτηση",
       "cpuGpuWin": "Συνεχές disk/CPU indexing 24/7 (γονατίζει παλιά laptop)"
+    },
+    {
+      "id": "nillytask",
+      "name": "NillyTask Pro",
+      "tag": "Task Manager",
+      "desc": "Πανάλαφρος Native Task Manager, Live CPU/RAM Γραφήματα, Startup & Ανάσα RAM",
+      "folder": "NillyTaskPro",
+      "launch": "NillyTaskPro.exe",
+      "process": "NillyTaskPro",
+      "icon": "NillyTaskPro.ico",
+      "repo": "nillytask-pro",
+      "prefix": "NillyTask-Pro",
+      "site": "https://nillygraphics.com/",
+      "accent": "#A6E22E",
+      "replaces": "Windows 11 Task Manager (WinUI/XAML — αργό στο 100% CPU)",
+      "diskNilly": "~38 KB ZIP / ~68 KB EXE",
+      "diskWin": "Ενσωματωμένο WinUI Taskmgr + Resource Monitor",
+      "ramNilly": "~16–24 MB ανοιχτό (0 MB κλειστό)",
+      "ramWin": "90–140 MB (κολλάει όταν το CPU πάει 100%)",
+      "cpuGpuNilly": "<50ms άνοιγμα · Native Win32 · 0% idle",
+      "cpuGpuWin": "Αργό XAML UI + GPU overhead σε παλιά laptop"
     }
   ]
 }
