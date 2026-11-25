@@ -31,8 +31,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.14.0")]
-[assembly: AssemblyFileVersion("1.6.14.0")]
+[assembly: AssemblyVersion("1.6.15.0")]
+[assembly: AssemblyFileVersion("1.6.15.0")]
 
 namespace NillyHub
 {
@@ -1293,11 +1293,6 @@ namespace NillyHub
             app.HasUpdate = (app.RemotePushedUtc > app.LocalBuildUtc.AddMinutes(5));
         }
 
-        public static void InstallOrUpdate(SuiteApp app, Action<string> onProgress)
-        {
-            InstallOrUpdateInteractive(app, onProgress, null);
-        }
-
         private static bool IsTrayUtility(string processName)
         {
             return string.Equals(processName, "NillyQuickSnap", StringComparison.OrdinalIgnoreCase) ||
@@ -1310,11 +1305,22 @@ namespace NillyHub
             if (procs.Length == 0) return false;
             try
             {
+                // 1. Graceful WM_CLOSE first so apps (NillyNote, NillyCode, etc.) save their auto-session cleanly!
                 for (int i = 0; i < procs.Length; i++)
                 {
                     try { procs[i].CloseMainWindow(); } catch { }
                 }
-                Thread.Sleep(450);
+                for (int w = 0; w < 15; w++)
+                {
+                    bool allGone = true;
+                    for (int i = 0; i < procs.Length; i++)
+                    {
+                        try { if (!procs[i].HasExited) { allGone = false; break; } } catch { }
+                    }
+                    if (allGone) break;
+                    Thread.Sleep(100);
+                }
+                // 2. Force-close any hidden tray / loopback host still alive so file locks release cleanly
                 for (int i = 0; i < procs.Length; i++)
                 {
                     try
@@ -1332,7 +1338,7 @@ namespace NillyHub
             return true;
         }
 
-        public static void InstallOrUpdateInteractive(SuiteApp app, Action<string> onProgress, Func<bool> confirmCloseRunning)
+        public static void InstallOrUpdate(SuiteApp app, Action<string> onProgress)
         {
             string temp = Path.Combine(Path.GetTempPath(), "NillyHub-" + Guid.NewGuid().ToString("N"));
             string zip = Path.Combine(temp, "portable.zip");
@@ -1362,20 +1368,9 @@ namespace NillyHub
                     for (int p = 0; p < count; p++) processes[p].Dispose();
                     if (count != 0)
                     {
-                        if (IsTrayUtility(app.ProcessName))
-                        {
-                            if (onProgress != null) onProgress("Προσωρινή διακοπή " + app.DisplayName + " (tray)...");
-                            relaunchTrayAfter = StopProcessesCleanly(app.ProcessName);
-                        }
-                        else if (confirmCloseRunning != null && confirmCloseRunning())
-                        {
-                            if (onProgress != null) onProgress("Κλείσιμο " + app.DisplayName + "...");
-                            StopProcessesCleanly(app.ProcessName);
-                        }
-                        else
-                        {
-                            throw new OperationCanceledException("Κλείσε πρώτα το " + app.DisplayName + " για να κρατήσεις τις αλλαγές σου.");
-                        }
+                        if (onProgress != null) onProgress("Αυτόματο κλείσιμο " + app.DisplayName + " για ενημέρωση...");
+                        bool stopped = StopProcessesCleanly(app.ProcessName);
+                        if (stopped && IsTrayUtility(app.ProcessName)) relaunchTrayAfter = true;
                     }
                 }
                 if (portableLauncher)
@@ -2942,29 +2937,13 @@ namespace NillyHub
             Thread th = new Thread(delegate()
             {
                 string err = null;
-                bool canceled = false;
                 try
                 {
-                    SuiteCatalog.InstallOrUpdateInteractive(app, delegate(string msg)
+                    SuiteCatalog.InstallOrUpdate(app, delegate(string msg)
                     {
                         try { BeginInvoke((Action)delegate { _lblStatus.Text = msg; }); } catch { }
-                    }, delegate()
-                    {
-                        bool yes = false;
-                        try
-                        {
-                            Invoke((Action)delegate
-                            {
-                                yes = (MessageBox.Show(this,
-                                    "Το " + app.DisplayName + " είναι ανοιχτό αυτή τη στιγμή.\r\nΘες να το κλείσει αυτόματα το NillyHub για να συνεχίσει η ενημέρωση;",
-                                    "Ενημέρωση " + app.DisplayName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes);
-                            });
-                        }
-                        catch { }
-                        return yes;
                     });
                 }
-                catch (OperationCanceledException) { canceled = true; }
                 catch (Exception ex) { err = ex.Message; }
                 try
                 {
@@ -2973,11 +2952,7 @@ namespace NillyHub
                         app.Busy = false;
                         SuiteCatalog.RefreshLocalState(app, _suiteRoot);
                         ApplyFilters();
-                        if (canceled)
-                        {
-                            _lblStatus.Text = "Ακυρώθηκε η ενημέρωση " + app.DisplayName + " (παρέμεινε ανοιχτό).";
-                        }
-                        else if (err != null)
+                        if (err != null)
                         {
                             _lblStatus.Text = "Σφάλμα: " + app.DisplayName;
                             MessageBox.Show(this, "Αδυναμία ενημέρωσης " + app.DisplayName + ":\r\n" + err, "NillyHub", MessageBoxButtons.OK, MessageBoxIcon.Warning);
