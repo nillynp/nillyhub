@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.4.0")]
-[assembly: AssemblyFileVersion("1.6.4.0")]
+[assembly: AssemblyVersion("1.6.5.0")]
+[assembly: AssemblyFileVersion("1.6.5.0")]
 
 namespace NillyHub
 {
@@ -2032,16 +2032,16 @@ namespace NillyHub
 
             FlowLayoutPanel rightBar = new FlowLayoutPanel
             {
-                Dock = DockStyle.Right, Width = 816, FlowDirection = FlowDirection.RightToLeft,
+                Dock = DockStyle.Right, Width = 876, FlowDirection = FlowDirection.RightToLeft,
                 WrapContents = false, Padding = new Padding(0, 3, 0, 0)
             };
 
             _btnTheme = MkPill("Light", 46, delegate { _dark = !_dark; ApplyTheme(); });
             _btnWinSwap = MkPill("⇄ Windows", 92, delegate { OpenWindowsSwitchWizard(); });
-            _btnSuiteAll = MkPill("↓ Όλη η Σουίτα", 112, delegate { InstallOrUpdateFullSuite(); });
+            _btnSuiteAll = MkPill("⇄ Σουίτα & Win Defaults", 174, delegate { InstallOrUpdateFullSuite(); });
             _btnCheck = MkPill("↻ Sync", 62, delegate { CheckGitHubUpdatesAsync(true); });
 
-            _txtSearch = new TextBox { Width = 124, Height = 26, BorderStyle = BorderStyle.FixedSingle, Font = FontInput, Margin = new Padding(4, 2, 4, 0) };
+            _txtSearch = new TextBox { Width = 120, Height = 26, BorderStyle = BorderStyle.FixedSingle, Font = FontInput, Margin = new Padding(4, 2, 4, 0) };
             _txtSearch.TextChanged += delegate { ApplyFilters(); };
 
             _btnFUpd = MkPill("Updates", 82, delegate { _filterMode = "updates"; ApplyFilters(); StylePills(); });
@@ -2049,8 +2049,8 @@ namespace NillyHub
             _btnFAll = MkPill("Όλα", 74, delegate { _filterMode = "all"; ApplyFilters(); StylePills(); });
 
             _sharedTip.SetToolTip(_btnCheck, "Συγχρονισμός GitHub");
-            _sharedTip.SetToolTip(_btnSuiteAll, "Όλη η Σουίτα");
-            _sharedTip.SetToolTip(_btnWinSwap, "Ρυθμίσεις Windows");
+            _sharedTip.SetToolTip(_btnSuiteAll, "Εγκαθιστά όλη τη NillyGraphics Suite & αντικαθιστά με ασφάλεια τα βαριά Windows Defaults (Zero Admin · SHA-256 · 100% αναστρέψιμο)");
+            _sharedTip.SetToolTip(_btnWinSwap, "Επιλεκτική ασφαλής αντικατάσταση προεπιλογών Windows (κρατάει codecs · 100% αναστρέψιμο)");
             _sharedTip.SetToolTip(_btnTheme, "Dark / Light");
             _sharedTip.SetToolTip(_txtSearch, "Αναζήτηση (Ctrl+F)");
 
@@ -2212,27 +2212,29 @@ namespace NillyHub
             }
             if (upd > 0 && missing > 0)
             {
-                _btnSuiteAll.Text = "↓ Σουίτα (" + (missing + upd) + ")";
+                _btnSuiteAll.Text = "↓ Σουίτα (" + (missing + upd) + ") + Win";
                 _btnSuiteAll.Enabled = true;
                 _btnSuiteAll.BackColor = orange; _btnSuiteAll.ForeColor = Color.FromArgb(14, 18, 24); _btnSuiteAll.FlatAppearance.BorderColor = orange;
             }
             else if (missing > 0)
             {
-                _btnSuiteAll.Text = "↓ Όλη η Σουίτα";
+                _btnSuiteAll.Text = "↓ Σουίτα + Win Defaults";
                 _btnSuiteAll.Enabled = true;
                 _btnSuiteAll.BackColor = cyan; _btnSuiteAll.ForeColor = Color.FromArgb(14, 18, 24); _btnSuiteAll.FlatAppearance.BorderColor = cyan;
             }
             else if (upd > 0)
             {
-                _btnSuiteAll.Text = "↓ Update (" + upd + ")";
+                _btnSuiteAll.Text = "↓ Update (" + upd + ") + Win";
                 _btnSuiteAll.Enabled = true;
                 _btnSuiteAll.BackColor = orange; _btnSuiteAll.ForeColor = Color.FromArgb(14, 18, 24); _btnSuiteAll.FlatAppearance.BorderColor = orange;
             }
             else
             {
-                _btnSuiteAll.Text = "↓ Όλη η Σουίτα";
+                _btnSuiteAll.Text = "⇄ Σουίτα & Win Defaults";
                 _btnSuiteAll.Enabled = true;
-                _btnSuiteAll.BackColor = btnBg; _btnSuiteAll.ForeColor = _dark ? Color.FromArgb(220, 226, 236) : Color.FromArgb(40, 44, 52); _btnSuiteAll.FlatAppearance.BorderColor = border;
+                _btnSuiteAll.BackColor = _dark ? Color.FromArgb(24, 42, 28) : Color.FromArgb(232, 248, 236);
+                _btnSuiteAll.ForeColor = _dark ? Color.FromArgb(166, 226, 46) : Color.FromArgb(24, 120, 34);
+                _btnSuiteAll.FlatAppearance.BorderColor = _dark ? Color.FromArgb(72, 146, 58) : Color.FromArgb(124, 198, 136);
             }
         }
 
@@ -2644,18 +2646,120 @@ namespace NillyHub
                 if (!a.Busy && a.FoundOnGitHub && (!a.IsInstalled || a.HasUpdate))
                     queue.Add(a);
             }
-            if (queue.Count == 0)
+
+            bool doInstallSuite = (queue.Count > 0);
+            bool doOpenWinSwap = true;
+
+            using (Form dlg = new Form())
             {
-                MessageBox.Show(this, "Όλα τα διαθέσιμα εργαλεία της Nilly Suite είναι ήδη εγκατεστημένα & ενημερωμένα!", "NillyHub", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                dlg.Text = "Όλη η NillyGraphics Suite & Ασφαλής Αντικατάσταση Windows";
+                dlg.ClientSize = new Size(510, 304);
+                dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                dlg.MaximizeBox = false;
+                dlg.MinimizeBox = false;
+
+                Color bg = _dark ? Color.FromArgb(22, 24, 29) : Color.FromArgb(245, 247, 250);
+                Color card = _dark ? Color.FromArgb(30, 33, 40) : Color.White;
+                Color fg = _dark ? Color.FromArgb(242, 244, 248) : Color.FromArgb(22, 24, 30);
+                Color muted = _dark ? Color.FromArgb(156, 164, 178) : Color.FromArgb(88, 98, 114);
+                Color green = _dark ? Color.FromArgb(166, 226, 46) : Color.FromArgb(24, 128, 36);
+                Color orange = Color.FromArgb(252, 150, 31);
+                Color border = _dark ? Color.FromArgb(54, 58, 68) : Color.FromArgb(212, 218, 228);
+
+                dlg.BackColor = bg;
+                dlg.ForeColor = fg;
+                Native.SetDarkTitlebar(dlg.Handle, _dark);
+
+                Label lTitle = new Label
+                {
+                    Left = 18, Top = 14, Width = 474, Height = 24, UseMnemonic = false,
+                    Font = new Font("Segoe UI", 10.5f, FontStyle.Bold), ForeColor = fg,
+                    Text = "⇄  Όλη η NillyGraphics Suite αντί για τα βαριά Windows Defaults"
+                };
+
+                Label lTrust = new Label
+                {
+                    Left = 18, Top = 42, Width = 474, Height = 26, UseMnemonic = false,
+                    BackColor = _dark ? Color.FromArgb(24, 44, 28) : Color.FromArgb(232, 248, 236),
+                    ForeColor = green, Font = new Font("Segoe UI", 8.3f, FontStyle.Bold),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Text = "✓ 100% Ασφαλές  ·  Zero Admin  ·  SHA-256 Επαλήθευση  ·  100% Αναστρέψιμο"
+                };
+
+                Label lInfo = new Label
+                {
+                    Left = 18, Top = 76, Width = 474, Height = 92, UseMnemonic = false,
+                    BackColor = card, ForeColor = muted, Font = new Font("Segoe UI", 8.6f),
+                    Padding = new Padding(10, 8, 10, 8),
+                    Text = "• Εγκαθιστά όλη τη σουίτα (~1,35 MB σύνολο αντί ~6 GB, 0€ MIT, 0 MB background RAM).\r\n" +
+                           "• Αντικαθιστά με ασφάλεια τα βαριά Windows Defaults (Photos, Paint, Notepad, Calculator,\r\n" +
+                           "  Media Player, Snipping Tool, Cloud Clipboard & Storage Sense).\r\n" +
+                           "• Κρατάει όλους τους codecs & τα προσωπικά σου αρχεία — επαναφορά όποτε θες από Microsoft Store."
+                };
+
+                CheckBox chkInstall = new CheckBox
+                {
+                    Left = 18, Top = 180, Width = 474, Height = 24, UseMnemonic = false,
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold), ForeColor = fg,
+                    Checked = (queue.Count > 0), Enabled = (queue.Count > 0),
+                    Text = queue.Count > 0
+                        ? ("Λήψη / Ενημέρωση " + queue.Count + " εργαλείων της Nilly Suite (SHA-256)")
+                        : "✓ Όλα τα εργαλεία της Nilly Suite είναι ήδη εγκατεστημένα & ενημερωμένα"
+                };
+
+                CheckBox chkSwap = new CheckBox
+                {
+                    Left = 18, Top = 208, Width = 474, Height = 24, UseMnemonic = false,
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold), ForeColor = green,
+                    Checked = true,
+                    Text = "Ασφαλής Αντικατάσταση Windows Defaults (άνοιγμα οδηγού επιβεβαίωσης)"
+                };
+
+                Button btnCancel = new Button
+                {
+                    Left = 214, Top = 254, Width = 96, Height = 32, FlatStyle = FlatStyle.Flat,
+                    BackColor = card, ForeColor = fg, Font = new Font("Segoe UI", 9f),
+                    Text = "Άκυρο", DialogResult = DialogResult.Cancel, Cursor = Cursors.Hand
+                };
+                btnCancel.FlatAppearance.BorderColor = border;
+
+                Button btnGo = new Button
+                {
+                    Left = 318, Top = 254, Width = 174, Height = 32, FlatStyle = FlatStyle.Flat,
+                    BackColor = orange, ForeColor = Color.FromArgb(14, 18, 24),
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    Text = queue.Count > 0 ? "⇄ Εγκατάσταση & Defaults" : "⇄ Αντικατάσταση Windows",
+                    Cursor = Cursors.Hand
+                };
+                btnGo.FlatAppearance.BorderSize = 0;
+                btnGo.Click += delegate
+                {
+                    if (!chkInstall.Checked && !chkSwap.Checked)
+                    {
+                        MessageBox.Show(dlg, "Επίλεξε τουλάχιστον μία ενέργεια.", "NillyHub", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    doInstallSuite = chkInstall.Checked && queue.Count > 0;
+                    doOpenWinSwap = chkSwap.Checked;
+                    dlg.DialogResult = DialogResult.OK;
+                    dlg.Close();
+                };
+
+                dlg.Controls.AddRange(new Control[] { lTitle, lTrust, lInfo, chkInstall, chkSwap, btnCancel, btnGo });
+                dlg.AcceptButton = btnGo;
+                dlg.CancelButton = btnCancel;
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            }
+
+            if (!doInstallSuite)
+            {
+                if (doOpenWinSwap) OpenWindowsSwitchWizard();
                 return;
             }
 
-            DialogResult dr = MessageBox.Show(this,
-                "Λήψη & εγκατάσταση/ενημέρωση " + queue.Count + " εργαλείων της Nilly Suite από το github.com/nillynp;\r\n(100% Δωρεάν · Zero Admin · SHA-256 Επαλήθευση)",
-                "Εγκατάσταση Όλης της Σουίτας — NillyHub", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (dr != DialogResult.Yes) return;
-
             _btnSuiteAll.Enabled = false;
+            bool openSwapAfter = doOpenWinSwap;
             Thread th = new Thread(delegate()
             {
                 int ok = 0;
@@ -2693,6 +2797,7 @@ namespace NillyHub
                                 "NillyHub — Αναφορά Σουίτας", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         }
                         Native.TrimWorkingSet();
+                        if (openSwapAfter) OpenWindowsSwitchWizard();
                     });
                 }
                 catch { }
