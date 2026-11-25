@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.9.0")]
-[assembly: AssemblyFileVersion("1.6.9.0")]
+[assembly: AssemblyVersion("1.6.10.0")]
+[assembly: AssemblyFileVersion("1.6.10.0")]
 
 namespace NillyHub
 {
@@ -2083,10 +2083,10 @@ namespace NillyHub
             // Responsive Header Bar (auto-adapts cleanly across 1-row, 2-row, or 3-row widths — NEVER clips NillyHub!)
             _header = new Panel { Dock = DockStyle.Top, Height = 56 };
 
-            _leftBrand = new Panel { Location = new Point(14, 11), Size = new Size(160, 34) };
+            _leftBrand = new Panel { Location = new Point(14, 11), Size = new Size(176, 34) };
             PictureBox picLogo = new PictureBox { Left = 0, Top = 1, Width = 32, Height = 32, Image = _hubLogoBmp, SizeMode = PictureBoxSizeMode.Zoom };
-            _lblTitle = new Label { Left = 40, Top = 0, Width = 118, Height = 20, Font = FontBrand, Text = "NillyHub", UseMnemonic = false };
-            _lblCount = new Label { Left = 41, Top = 20, Width = 118, Height = 14, Font = FontSub, Text = "Nilly graphics Suite", UseMnemonic = false };
+            _lblTitle = new Label { Left = 40, Top = 0, Width = 134, Height = 20, Font = FontBrand, Text = "NillyHub", UseMnemonic = false };
+            _lblCount = new Label { Left = 41, Top = 20, Width = 134, Height = 14, Font = FontSub, Text = "Nilly graphics Suite", UseMnemonic = false };
             _leftBrand.Controls.AddRange(new Control[] { picLogo, _lblTitle, _lblCount });
 
             _btnTheme = MkPill("Light", 48, delegate { _dark = !_dark; ApplyTheme(); });
