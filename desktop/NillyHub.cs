@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.8.0")]
-[assembly: AssemblyFileVersion("1.6.8.0")]
+[assembly: AssemblyVersion("1.6.9.0")]
+[assembly: AssemblyFileVersion("1.6.9.0")]
 
 namespace NillyHub
 {
@@ -772,15 +772,18 @@ namespace NillyHub
             return null;
         }
 
-        public static bool TryCheckHubSelfUpdate(DateTime hubRepoPushedUtc, out string newTag, out string zipUrl, out string sha256, out long sizeBytes)
+        public static bool TryCheckHubSelfUpdate(DateTime hubRepoPushedUtc, bool forceManual, out string newTag, out string zipUrl, out string sha256, out long sizeBytes)
         {
             newTag = null; zipUrl = null; sha256 = null; sizeBytes = 0;
             try
             {
                 Version curVer = Assembly.GetExecutingAssembly().GetName().Version;
-                DateTime exeBuilt = File.GetLastWriteTimeUtc(Application.ExecutablePath);
-                if (hubRepoPushedUtc != DateTime.MinValue && hubRepoPushedUtc <= exeBuilt.AddMinutes(10))
-                    return false;
+                if (!forceManual && hubRepoPushedUtc != DateTime.MinValue)
+                {
+                    DateTime exeBuilt = File.GetLastWriteTimeUtc(Application.ExecutablePath);
+                    if (hubRepoPushedUtc < exeBuilt.AddMinutes(-5))
+                        return false;
+                }
                 string url = ResolvePortableZip("nillyhub", out newTag, out sha256, out sizeBytes);
                 Version remVer;
                 if (!TryParseTagVersion(newTag, out remVer) || remVer <= curVer)
@@ -1887,10 +1890,10 @@ namespace NillyHub
     {
         private static readonly Font DlgFont = new Font("Segoe UI", 9f);
 
-        public WindowsSwitchDialog(bool dark)
+        public WindowsSwitchDialog(bool dark, string suiteRoot)
         {
-            Text = "NillyHub — Ρυθμίσεις Windows";
-            ClientSize = new Size(490, 150);
+            Text = "NillyHub — Ρυθμίσεις Windows & Ασφαλής Αφαίρεση Bloat";
+            ClientSize = new Size(510, 198);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -1902,19 +1905,47 @@ namespace NillyHub
 
             Label guide = new Label
             {
-                Left = 20, Top = 18, Width = 450, Height = 64,
-                Text = "Άλλαξε τις προεπιλεγμένες εφαρμογές μέσα από τα Windows. Για το NillyClip Pro, άνοιξε τις ρυθμίσεις Προχείρου και διάλεξε εσύ αν θέλεις ιστορικό ή συγχρονισμό."
+                Left = 20, Top = 16, Width = 470, Height = 58, UseMnemonic = false,
+                Text = "1) Όρισε τα εργαλεία της Nilly Suite ως προεπιλογές Windows.\r\n2) Προαιρετικά άνοιξε το NillyUninstall Pro για 100% ασφαλή αφαίρεση βαριών Windows 11 Bloat Apps (1-κλικ επαναφορά από Microsoft Store)."
             };
-            Button defaults = SettingsButton("Προεπιλογές Windows", "ms-settings:defaultapps", 20, dark);
-            Button clipboard = SettingsButton("Πρόχειρο & Συγχρονισμός", "ms-settings:clipboard", 232, dark);
-            Controls.AddRange(new Control[] { guide, defaults, clipboard });
+            Button defaults = SettingsButton("Προεπιλογές Windows", "ms-settings:defaultapps", 20, 86, 228, dark);
+            Button clipboard = SettingsButton("Πρόχειρο & Συγχρονισμός", "ms-settings:clipboard", 262, 86, 228, dark);
+            Button bloat = new Button
+            {
+                Text = "✕ Ασφαλής Αφαίρεση Windows 11 Bloat (NillyUninstall Pro)",
+                Left = 20, Top = 132, Width = 470, Height = 36,
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, UseMnemonic = false,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                BackColor = Color.FromArgb(252, 150, 31),
+                ForeColor = Color.FromArgb(14, 18, 24)
+            };
+            bloat.FlatAppearance.BorderSize = 0;
+            bloat.Click += delegate
+            {
+                string exe = Path.Combine(suiteRoot ?? "", @"NillyUninstallPro\NillyUninstallPro.exe");
+                if (!File.Exists(exe))
+                {
+                    string alt = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\NillyUninstallPro\NillyUninstallPro.exe");
+                    if (File.Exists(alt)) exe = Path.GetFullPath(alt);
+                }
+                if (File.Exists(exe))
+                {
+                    try { Process.Start(new ProcessStartInfo(exe) { WorkingDirectory = Path.GetDirectoryName(exe), UseShellExecute = true }); Close(); }
+                    catch (Exception ex) { MessageBox.Show(ex.Message, "NillyHub"); }
+                }
+                else
+                {
+                    MessageBox.Show(this, "Εγκατάστησε πρώτα το «NillyUninstall Pro» από το NillyHub με 1 κλικ!", "NillyHub", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            };
+            Controls.AddRange(new Control[] { guide, defaults, clipboard, bloat });
         }
 
-        private static Button SettingsButton(string label, string page, int left, bool dark)
+        private static Button SettingsButton(string label, string page, int left, int top, int width, bool dark)
         {
             Button button = new Button
             {
-                Text = label, Left = left, Top = 96, Width = 218, Height = 34,
+                Text = label, Left = left, Top = top, Width = width, Height = 34, UseMnemonic = false,
                 FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
                 BackColor = dark ? Color.FromArgb(38, 42, 50) : Color.FromArgb(240, 243, 248),
                 ForeColor = dark ? Color.FromArgb(240, 244, 250) : Color.FromArgb(22, 24, 30)
@@ -1964,7 +1995,7 @@ namespace NillyHub
         private string _hubUpdTag, _hubUpdUrl, _hubUpdSha;
         private long _hubUpdSize;
         private bool _hubUpdating = false;
-        private string _suiteSizeLabel = "1,3 MB";
+        private string _suiteSizeLabel = "1,65 MB";
 
         public MainForm(bool smokeMode)
         {
@@ -2047,7 +2078,7 @@ namespace NillyHub
                 AccessibleName = "Σύγκριση σουίτας",
                 AccessibleDescription = "Δωρεάν εργαλεία Windows (99,98% ελαφρύτερα από ~6 GB αντίστοιχων εφαρμογών)."
             };
-            _sharedTip.SetToolTip(_suiteBar, "~6 GB → 1,35 MB · 0€ MIT");
+            _sharedTip.SetToolTip(_suiteBar, "~6 GB → " + _suiteSizeLabel + " · 0€ MIT");
 
             // Responsive Header Bar (auto-adapts cleanly across 1-row, 2-row, or 3-row widths — NEVER clips NillyHub!)
             _header = new Panel { Dock = DockStyle.Top, Height = 56 };
@@ -2427,7 +2458,7 @@ namespace NillyHub
 
         private void OpenWindowsSwitchWizard()
         {
-            using (WindowsSwitchDialog dialog = new WindowsSwitchDialog(_dark))
+            using (WindowsSwitchDialog dialog = new WindowsSwitchDialog(_dark, _suiteRoot))
                 dialog.ShowDialog(this);
         }
 
@@ -2494,6 +2525,7 @@ namespace NillyHub
                 psi.UseShellExecute = true;
                 Process.Start(psi);
                 _lblStatus.Text = "Άνοιξε το " + app.DisplayName + ".";
+                Native.TrimWorkingSet();
             }
             catch (Exception ex)
             {
@@ -2527,7 +2559,7 @@ namespace NillyHub
                         for (int i = 0; i < repos.Count; i++)
                             if (string.Equals(repos[i].Name, "nillyhub", StringComparison.OrdinalIgnoreCase))
                             { hubPushed = repos[i].PushedAtUtc; break; }
-                        hasHubUpd = GitHubClient.TryCheckHubSelfUpdate(hubPushed, out hTag, out hUrl, out hSha, out hSize);
+                        hasHubUpd = GitHubClient.TryCheckHubSelfUpdate(hubPushed, forceManual, out hTag, out hUrl, out hSha, out hSize);
                     }
                 }
                 catch (Exception ex) { err = ex.Message; }
@@ -2807,9 +2839,9 @@ namespace NillyHub
                     Left = 18, Top = 76, Width = 474, Height = 92, UseMnemonic = false,
                     BackColor = card, ForeColor = muted, Font = new Font("Segoe UI", 8.6f),
                     Padding = new Padding(10, 8, 10, 8),
-                    Text = "• Εγκαθιστά όλη τη σουίτα (~1,35 MB σύνολο αντί ~6 GB, 0€ MIT, 0 MB background RAM).\r\n" +
+                    Text = "• Εγκαθιστά όλη τη σουίτα (~" + _suiteSizeLabel + " σύνολο αντί ~6 GB, 0€ MIT, 0 MB background RAM).\r\n" +
                            "• Αντικαθιστά με ασφάλεια τα βαριά Windows Defaults (Photos, Paint, Notepad, Calculator,\r\n" +
-                           "  Media Player, Snipping Tool, Cloud Clipboard & Storage Sense).\r\n" +
+                           "  Media Player, Snipping Tool, Explorer, Task Manager, Search, Clipboard & Uninstaller).\r\n" +
                            "• Κρατάει όλους τους codecs & τα προσωπικά σου αρχεία — επαναφορά όποτε θες από Microsoft Store."
                 };
 
