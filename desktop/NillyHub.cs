@@ -31,8 +31,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.13.0")]
-[assembly: AssemblyFileVersion("1.6.13.0")]
+[assembly: AssemblyVersion("1.6.14.0")]
+[assembly: AssemblyFileVersion("1.6.14.0")]
 
 namespace NillyHub
 {
@@ -1295,10 +1295,50 @@ namespace NillyHub
 
         public static void InstallOrUpdate(SuiteApp app, Action<string> onProgress)
         {
+            InstallOrUpdate(app, onProgress, null);
+        }
+
+        private static bool IsTrayUtility(string processName)
+        {
+            return string.Equals(processName, "NillyQuickSnap", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(processName, "NillyClipPro", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool StopProcessesCleanly(string processName)
+        {
+            Process[] procs = Process.GetProcessesByName(processName);
+            if (procs.Length == 0) return false;
+            try
+            {
+                for (int i = 0; i < procs.Length; i++)
+                {
+                    try { procs[i].CloseMainWindow(); } catch { }
+                }
+                Thread.Sleep(450);
+                for (int i = 0; i < procs.Length; i++)
+                {
+                    try
+                    {
+                        if (!procs[i].HasExited) { procs[i].Kill(); procs[i].WaitForExit(3000); }
+                    }
+                    catch { }
+                }
+                Thread.Sleep(250);
+            }
+            finally
+            {
+                for (int i = 0; i < procs.Length; i++) try { procs[i].Dispose(); } catch { }
+            }
+            return true;
+        }
+
+        public static void InstallOrUpdate(SuiteApp app, Action<string> onProgress, Func<bool> confirmCloseRunning)
+        {
             string temp = Path.Combine(Path.GetTempPath(), "NillyHub-" + Guid.NewGuid().ToString("N"));
             string zip = Path.Combine(temp, "portable.zip");
             string files = Path.Combine(temp, "package");
             Directory.CreateDirectory(files);
+            bool relaunchTrayAfter = false;
             try
             {
                 if (onProgress != null) onProgress("Έλεγχος Release για " + app.DisplayName + "...");
@@ -1321,7 +1361,22 @@ namespace NillyHub
                     int count = processes.Length;
                     for (int p = 0; p < count; p++) processes[p].Dispose();
                     if (count != 0)
-                        throw new InvalidOperationException("Κλείσε πρώτα το " + app.DisplayName + " για να κρατήσεις τις αλλαγές σου.");
+                    {
+                        if (IsTrayUtility(app.ProcessName))
+                        {
+                            if (onProgress != null) onProgress("Προσωρινή διακοπή " + app.DisplayName + " (tray)...");
+                            relaunchTrayAfter = StopProcessesCleanly(app.ProcessName);
+                        }
+                        else if (confirmCloseRunning != null && confirmCloseRunning())
+                        {
+                            if (onProgress != null) onProgress("Κλείσιμο " + app.DisplayName + "...");
+                            StopProcessesCleanly(app.ProcessName);
+                        }
+                        else
+                        {
+                            throw new OperationCanceledException("Κλείσε πρώτα το " + app.DisplayName + " για να κρατήσεις τις αλλαγές σου.");
+                        }
+                    }
                 }
                 if (portableLauncher)
                 {
@@ -1406,6 +1461,18 @@ namespace NillyHub
                     // Verified clean install: remove temporary rollback backup so disk stays spotless!
                     if (previousMoved && Directory.Exists(backup))
                         try { Directory.Delete(backup, true); } catch { }
+
+                    // Seamlessly restore background tray utility (NillyQuickSnap / NillyClip Pro) if it was running!
+                    if (relaunchTrayAfter)
+                    {
+                        try
+                        {
+                            string newLaunch = Path.Combine(target, app.LaunchFile);
+                            if (File.Exists(newLaunch))
+                                Process.Start(new ProcessStartInfo(newLaunch) { WorkingDirectory = target, UseShellExecute = true });
+                        }
+                        catch { }
+                    }
                 }
                 catch
                 {
@@ -2875,13 +2942,29 @@ namespace NillyHub
             Thread th = new Thread(delegate()
             {
                 string err = null;
+                bool canceled = false;
                 try
                 {
                     SuiteCatalog.InstallOrUpdate(app, delegate(string msg)
                     {
                         try { BeginInvoke((Action)delegate { _lblStatus.Text = msg; }); } catch { }
+                    }, delegate()
+                    {
+                        bool yes = false;
+                        try
+                        {
+                            Invoke((Action)delegate
+                            {
+                                yes = (MessageBox.Show(this,
+                                    "Το " + app.DisplayName + " είναι ανοιχτό αυτή τη στιγμή.\r\nΘες να το κλείσει αυτόματα το NillyHub για να συνεχίσει η ενημέρωση;",
+                                    "Ενημέρωση " + app.DisplayName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes);
+                            });
+                        }
+                        catch { }
+                        return yes;
                     });
                 }
+                catch (OperationCanceledException) { canceled = true; }
                 catch (Exception ex) { err = ex.Message; }
                 try
                 {
@@ -2890,7 +2973,11 @@ namespace NillyHub
                         app.Busy = false;
                         SuiteCatalog.RefreshLocalState(app, _suiteRoot);
                         ApplyFilters();
-                        if (err != null)
+                        if (canceled)
+                        {
+                            _lblStatus.Text = "Ακυρώθηκε η ενημέρωση " + app.DisplayName + " (παρέμεινε ανοιχτό).";
+                        }
+                        else if (err != null)
                         {
                             _lblStatus.Text = "Σφάλμα: " + app.DisplayName;
                             MessageBox.Show(this, "Αδυναμία ενημέρωσης " + app.DisplayName + ":\r\n" + err, "NillyHub", MessageBoxButtons.OK, MessageBoxIcon.Warning);
