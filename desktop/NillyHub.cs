@@ -15,6 +15,7 @@ using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
+using System.Net.Cache;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -30,8 +31,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.12.0")]
-[assembly: AssemblyFileVersion("1.6.12.0")]
+[assembly: AssemblyVersion("1.6.13.0")]
+[assembly: AssemblyFileVersion("1.6.13.0")]
 
 namespace NillyHub
 {
@@ -540,6 +541,7 @@ namespace NillyHub
             HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
             req.UserAgent = "NillyHub/1.6 (https://nillygraphics.com/)";
             req.Accept = "application/vnd.github+json";
+            req.CachePolicy = new RequestCachePolicy(RequestCacheLevel.BypassCache);
             if (!string.IsNullOrEmpty(CiReleaseToken) && req.RequestUri.Scheme == Uri.UriSchemeHttps
                 && req.RequestUri.IsDefaultPort && string.IsNullOrEmpty(req.RequestUri.UserInfo)
                 && string.Equals(req.RequestUri.Host, "api.github.com", StringComparison.OrdinalIgnoreCase))
@@ -868,32 +870,78 @@ namespace NillyHub
 
         public static void DownloadVerifiedZip(string url, string destination, string expectedHash, long expectedBytes)
         {
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-            request.UserAgent = "NillyHub/1.6 (https://nillygraphics.com/)";
-            request.Timeout = 18000;
-            request.ReadWriteTimeout = 18000;
-            using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-            using (Stream incoming = response.GetResponseStream())
-            using (FileStream output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write))
+            Exception lastErr = null;
+            for (int attempt = 0; attempt < 2; attempt++)
             {
-                byte[] buffer = new byte[32768];
-                long count = 0;
-                int read;
-                while ((read = incoming.Read(buffer, 0, buffer.Length)) > 0)
+                try
                 {
-                    count += read;
-                    if (count > expectedBytes) throw new InvalidDataException("Το ZIP είναι μεγαλύτερο από το δηλωμένο.");
-                    output.Write(buffer, 0, read);
+                    if (File.Exists(destination)) try { File.Delete(destination); } catch { }
+                    HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+                    request.UserAgent = "NillyHub/1.6 (https://nillygraphics.com/)";
+                    request.CachePolicy = new RequestCachePolicy(RequestCacheLevel.BypassCache);
+                    request.Timeout = 20000;
+                    request.ReadWriteTimeout = 20000;
+                    using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                    using (Stream incoming = response.GetResponseStream())
+                    using (FileStream output = new FileStream(destination, FileMode.Create, FileAccess.Write))
+                    {
+                        byte[] buffer = new byte[32768];
+                        long count = 0;
+                        int read;
+                        while ((read = incoming.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            count += read;
+                            if (count > expectedBytes) throw new InvalidDataException("Το ZIP είναι μεγαλύτερο από το δηλωμένο.");
+                            output.Write(buffer, 0, read);
+                        }
+                        if (count != expectedBytes) throw new InvalidDataException("Το ZIP έχει διαφορετικό μέγεθος.");
+                    }
+                    using (SHA256 sha = SHA256.Create())
+                    using (FileStream file = File.OpenRead(destination))
+                    {
+                        string actual = BitConverter.ToString(sha.ComputeHash(file)).Replace("-", "");
+                        if (!actual.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+                            throw new InvalidDataException("Το SHA-256 του ZIP δεν συμφωνεί.");
+                    }
+                    return;
                 }
-                if (count != expectedBytes) throw new InvalidDataException("Το ZIP έχει διαφορετικό μέγεθος.");
+                catch (InvalidDataException)
+                {
+                    try { if (File.Exists(destination)) File.Delete(destination); } catch { }
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    lastErr = ex;
+                    try { if (File.Exists(destination)) File.Delete(destination); } catch { }
+                    if (attempt == 0) Thread.Sleep(450);
+                }
             }
-            using (SHA256 sha = SHA256.Create())
-            using (FileStream file = File.OpenRead(destination))
+            if (lastErr != null) throw lastErr;
+        }
+
+        // Always resolves fresh live GitHub metadata right before downloading, and auto-re-resolves once if CDN/asset just rotated.
+        public static string DownloadVerifiedRelease(string repoName, string destination, Action<string> onProgress, out string tag)
+        {
+            tag = null;
+            for (int round = 0; round < 2; round++)
             {
-                string actual = BitConverter.ToString(sha.ComputeHash(file)).Replace("-", "");
-                if (!actual.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("Το SHA-256 του ZIP δεν συμφωνεί.");
+                string hash;
+                long bytes;
+                string url = ResolvePortableZip(repoName, out tag, out hash, out bytes);
+                if (onProgress != null) onProgress("Λήψη & SHA-256 έλεγχος (" + tag + ")...");
+                try
+                {
+                    DownloadVerifiedZip(url, destination, hash, bytes);
+                    return url;
+                }
+                catch (InvalidDataException)
+                {
+                    if (round == 0) { Thread.Sleep(500); continue; }
+                    throw;
+                }
             }
+            throw new InvalidOperationException("Αποτυχία επαληθευμένης λήψης release.");
         }
     }
 
@@ -1254,11 +1302,11 @@ namespace NillyHub
             try
             {
                 if (onProgress != null) onProgress("Έλεγχος Release για " + app.DisplayName + "...");
-                string tag, hash;
-                long bytes;
-                string url = GitHubClient.ResolvePortableZip(app.RepoName, out tag, out hash, out bytes);
-                if (onProgress != null) onProgress("Λήψη και επαλήθευση " + app.DisplayName + " (" + tag + ")...");
-                GitHubClient.DownloadVerifiedZip(url, zip, hash, bytes);
+                string tag;
+                GitHubClient.DownloadVerifiedRelease(app.RepoName, zip, delegate(string m)
+                {
+                    if (onProgress != null) onProgress(app.DisplayName + ": " + m);
+                }, out tag);
                 ExtractZipSmart(zip, files);
 
                 string installerName = "Install_" + Path.GetFileNameWithoutExtension(app.LaunchFile) + ".ps1";
@@ -1305,8 +1353,15 @@ namespace NillyHub
                 {
                     if (Directory.Exists(target))
                     {
-                        Directory.Move(target, backup);
-                        previousMoved = true;
+                        Exception moveErr = null;
+                        for (int m = 0; m < 3; m++)
+                        {
+                            try { Directory.Move(target, backup); previousMoved = true; moveErr = null; break; }
+                            catch (IOException ioEx) { moveErr = ioEx; Thread.Sleep(350); }
+                            catch (UnauthorizedAccessException uaEx) { moveErr = uaEx; Thread.Sleep(350); }
+                        }
+                        if (!previousMoved && moveErr != null)
+                            throw new IOException("Ο φάκελος " + app.DisplayName + " χρησιμοποιείται αυτή τη στιγμή. Κλείσε το πρόγραμμα ή τον Explorer στον φάκελο αυτό και ξαναδοκίμασε.");
                     }
                     Directory.CreateDirectory(target);
                     installing = true;
@@ -1319,16 +1374,28 @@ namespace NillyHub
                         psi.WorkingDirectory = target;
                         psi.UseShellExecute = false;
                         psi.CreateNoWindow = true;
+                        psi.RedirectStandardError = true;
+                        StringBuilder errBuf = new StringBuilder();
                         using (Process process = Process.Start(psi))
                         {
                             if (process == null) throw new InvalidOperationException("Ο installer δεν ξεκίνησε.");
+                            process.ErrorDataReceived += delegate(object s, DataReceivedEventArgs e)
+                            {
+                                if (!string.IsNullOrEmpty(e.Data) && errBuf.Length < 400) errBuf.AppendLine(e.Data);
+                            };
+                            process.BeginErrorReadLine();
                             if (!process.WaitForExit(90000))
                             {
                                 process.Kill();
                                 process.WaitForExit();
                                 throw new TimeoutException("Ο installer δεν ολοκληρώθηκε έγκαιρα.");
                             }
-                            if (process.ExitCode != 0) throw new InvalidOperationException("Ο installer δεν επιβεβαίωσε επιτυχία.");
+                            if (process.ExitCode != 0)
+                            {
+                                string detail = errBuf.ToString().Trim();
+                                if (detail.Length > 260) detail = detail.Substring(0, 260);
+                                throw new InvalidOperationException("Ο installer δεν επιβεβαίωσε επιτυχία (code " + process.ExitCode + ")." + (detail.Length > 0 ? ("\r\n" + detail) : ""));
+                            }
                         }
                     }
                     if (!File.Exists(Path.Combine(target, app.LaunchFile)))
@@ -1342,8 +1409,17 @@ namespace NillyHub
                 }
                 catch
                 {
-                    if (installing && Directory.Exists(target)) Directory.Delete(target, true);
-                    if (previousMoved && Directory.Exists(backup)) Directory.Move(backup, target);
+                    if (installing && Directory.Exists(target))
+                    {
+                        for (int r = 0; r < 3; r++)
+                        {
+                            try { Directory.Delete(target, true); break; } catch { Thread.Sleep(250); }
+                        }
+                    }
+                    if (previousMoved && Directory.Exists(backup) && !Directory.Exists(target))
+                    {
+                        try { Directory.Move(backup, target); } catch { }
+                    }
                     throw;
                 }
             }
@@ -2586,6 +2662,10 @@ namespace NillyHub
                 long hSize = 0;
                 try
                 {
+                    if (forceManual)
+                    {
+                        try { File.Delete(Path.Combine(_suiteRoot, ".nillyhub_repos.etag")); } catch { }
+                    }
                     try { liveCatalogJson = GitHubClient.FetchLiveCatalogJson(_suiteRoot, !forceManual); } catch { }
                     repos = GitHubClient.FetchAllOwnerReposCached(_suiteRoot, !forceManual, out src);
                     if (repos != null)
@@ -2672,8 +2752,7 @@ namespace NillyHub
             _hubUpdating = true;
             _btnHubUpd.Enabled = false;
             _btnHubUpd.Text = "Ενημέρωση...";
-            string url = _hubUpdUrl, sha = _hubUpdSha, tag = _hubUpdTag;
-            long size = _hubUpdSize;
+            string tag = _hubUpdTag;
             string curExe = Application.ExecutablePath;
             int myPid = Process.GetCurrentProcess().Id;
 
@@ -2687,8 +2766,13 @@ namespace NillyHub
                     string pkg = Path.Combine(temp, "pkg");
                     Directory.CreateDirectory(pkg);
 
-                    BeginInvoke((Action)delegate { _lblStatus.Text = "Λήψη & SHA-256 έλεγχος NillyHub " + tag + "..."; });
-                    GitHubClient.DownloadVerifiedZip(url, zip, sha, size);
+                    // Always resolve fresh live release metadata right before downloading (zero stale size/hash mismatch!)
+                    string freshTag;
+                    GitHubClient.DownloadVerifiedRelease("nillyhub", zip, delegate(string m)
+                    {
+                        try { BeginInvoke((Action)delegate { _lblStatus.Text = "NillyHub: " + m; }); } catch { }
+                    }, out freshTag);
+                    if (!string.IsNullOrEmpty(freshTag)) tag = freshTag;
                     SuiteCatalog.ExtractZipSmart(zip, pkg);
 
                     string srcCs = Path.Combine(pkg, @"desktop\NillyHub.cs");
@@ -2719,17 +2803,19 @@ namespace NillyHub
                     // Write hidden atomic swapper script that runs right after this process exits cleanly
                     string swapPs1 = Path.Combine(temp, "swap.ps1");
                     string script =
-                        "param($p,$src,$dst,$tmp)\r\n" +
-                        "for($i=0;$i -lt 40;$i++){ if(-not (Get-Process -Id $p -ErrorAction SilentlyContinue)){break}; Start-Sleep -Milliseconds 150 }\r\n" +
-                        "Copy-Item -LiteralPath $src -Destination $dst -Force\r\n" +
-                        "Start-Process -FilePath $dst -WorkingDirectory (Split-Path -Parent $dst)\r\n" +
+                        "param($p,$src,$dst,$pkgDir,$tmp)\r\n" +
+                        "for($i=0;$i -lt 50;$i++){ if(-not (Get-Process -Id $p -ErrorAction SilentlyContinue)){break}; Start-Sleep -Milliseconds 150 }\r\n" +
+                        "$dstDir = Split-Path -Parent $dst\r\n" +
+                        "for($k=0;$k -lt 5;$k++){ try { Copy-Item -LiteralPath $src -Destination $dst -Force -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 300 } }\r\n" +
+                        "foreach($f in @('catalog.json','TERMS_AND_LICENSE.txt','NillyHub.ico')){ $sf = Join-Path $pkgDir $f; if(Test-Path $sf){ Copy-Item -LiteralPath $sf -Destination (Join-Path $dstDir $f) -Force -ErrorAction SilentlyContinue } }\r\n" +
+                        "Start-Process -FilePath $dst -WorkingDirectory $dstDir\r\n" +
                         "Start-Sleep -Milliseconds 400\r\n" +
                         "Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue\r\n";
                     File.WriteAllText(swapPs1, script, Encoding.UTF8);
 
                     ProcessStartInfo spsi = new ProcessStartInfo("powershell.exe",
                         "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + swapPs1 + "\" " +
-                        myPid + " \"" + newExe + "\" \"" + curExe + "\" \"" + temp + "\"");
+                        myPid + " \"" + newExe + "\" \"" + curExe + "\" \"" + pkg + "\" \"" + temp + "\"");
                     spsi.UseShellExecute = false;
                     spsi.CreateNoWindow = true;
                     Process.Start(spsi);
