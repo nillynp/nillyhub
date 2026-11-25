@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "suiteSizeLabel": "1,35 MB",
+  "suiteSizeLabel": "1,45 MB",
   "apps": [
     {
       "id": "nillyview",
@@ -27,7 +27,7 @@
       "id": "nillydoc",
       "name": "NillyDoc Pro",
       "tag": "PDF Studio",
-      "desc": "Πανάλαφρος Acrobat-Style PDF Viewer & Editor",
+      "desc": "Πανάλαφρος Acrobat-Style PDF Viewer, Spread View & Inline Editor",
       "folder": "NillyDocPro",
       "launch": "NillyDocPro.exe",
       "process": "NillyDocPro",
@@ -37,7 +37,7 @@
       "site": "https://nillygraphics.com/product/nillydoc-pro-windows/el/",
       "accent": "#F92672",
       "replaces": "Adobe Acrobat (~2,5 GB) / PDFgear (394 MB)",
-      "diskNilly": "~659 KB ZIP (~1,9 MB unpacked)",
+      "diskNilly": "~665 KB ZIP (~1,9 MB unpacked)",
       "diskWin": "394 MB – 2.500 MB",
       "ramNilly": "~40–80 MB (0 MB κλειστό)",
       "ramWin": "250–600 MB (+ 200 MB background updaters)",
@@ -216,7 +216,7 @@
       "id": "nillyclip",
       "name": "NillyClip Pro",
       "tag": "Clipboard & Vault",
-      "desc": "Ιστορικό προχείρου και τοπική κλειδοθήκη",
+      "desc": "Ιστορικό προχείρου & Double-Layer Κλειδοθήκη (AES-256 + DPAPI Vault)",
       "folder": "NillyClipPro",
       "launch": "NillyClipPro.exe",
       "process": "NillyClipPro",
@@ -226,7 +226,7 @@
       "site": "https://nillygraphics.com/product/nillyclip-pro/el/",
       "accent": "#FC961F",
       "replaces": "Windows Cloud Clipboard / Password Managers",
-      "diskNilly": "~38 KB ZIP / ~62 KB EXE",
+      "diskNilly": "~47 KB ZIP / ~86 KB EXE",
       "diskWin": "Cloud sync host + Electron Vaults (150+ MB)",
       "ramNilly": "~10–16 MB (0 MB κλειστό)",
       "ramWin": "100–280 MB (+ cloud sync background service)",
@@ -295,6 +295,27 @@
       "ramWin": "90–140 MB (κολλάει όταν το CPU πάει 100%)",
       "cpuGpuNilly": "<50ms άνοιγμα · Native Win32 · 0% idle",
       "cpuGpuWin": "Αργό XAML UI + GPU overhead σε παλιά laptop"
+    },
+    {
+      "id": "nillyfiles",
+      "name": "NillyFiles Pro",
+      "tag": "File Explorer",
+      "desc": "Πανάλαφρος Native File Explorer με Καρτέλες, Διπλό Παράθυρο (Dual-Pane) & 0 MB Idle RAM",
+      "folder": "NillyFilesPro",
+      "launch": "NillyFilesPro.exe",
+      "process": "NillyFilesPro",
+      "icon": "NillyFilesPro.ico",
+      "repo": "nillyfiles-pro",
+      "prefix": "NillyFiles-Pro",
+      "site": "https://nillygraphics.com/",
+      "accent": "#FC961F",
+      "replaces": "Windows 11 File Explorer (WinUI/XAML — ΔΕΝ πειράζει το explorer.exe!)",
+      "diskNilly": "~45 KB ZIP / ~86 KB EXE (0 DLLs)",
+      "diskWin": "WinUI/XAML Explorer + OneDrive/AI shell hooks",
+      "ramNilly": "~16–28 MB ανοιχτό (0 MB & 0% CPU κλειστό)",
+      "ramWin": "120–350+ MB (μεγαλώνει σε κάθε καρτέλα)",
+      "cpuGpuNilly": "FindFirstFileExW + Virtual ListView (<10ms άνοιγμα)",
+      "cpuGpuWin": "Βαρύ XAML/WinUI rendering + background indexing"
     }
   ]
 }

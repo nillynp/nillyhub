@@ -30,8 +30,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.6.0")]
-[assembly: AssemblyFileVersion("1.6.6.0")]
+[assembly: AssemblyVersion("1.6.7.0")]
+[assembly: AssemblyFileVersion("1.6.7.0")]
 
 namespace NillyHub
 {
@@ -665,6 +665,7 @@ namespace NillyHub
             { "nillyzip-pro", "NillyZip-Pro" },
             { "nillysearch-pro", "NillySearch-Pro" },
             { "nillytask-pro", "NillyTask-Pro" },
+            { "nillyfiles-pro", "NillyFiles-Pro" },
             { "nillyhub", "NillyHub" }
         };
 
@@ -905,7 +906,11 @@ namespace NillyHub
             list.Add(Make("nillyquicksnap", "NillyQuickSnap", "Screen & Ruler", "Snipping Tool + Live Pixel Ruler + Blur/Σχεδίαση", "NillyQuickSnap", "NillyQuickSnap.exe", "NillyQuickSnap", "NillyQuickSnap.ico", "nillyquicksnap", "https://nillygraphics.com/product/nillyquicksnap/el/", Color.FromArgb(102, 217, 239)));
             list.Add(Make("nillydisk", "NillyDisk Pro", "Disk Treemap", "Αναλυτής Δίσκου, Treemap, SHA-256 Διπλότυπα & Cleaner", "NillyDiskPro", "NillyDiskPro.exe", "NillyDiskPro", "NillyDiskPro.ico", "nillydisk-pro", "https://nillygraphics.com/product/nillydisk-pro/el/", Color.FromArgb(252, 150, 31)));
             list.Add(Make("pcmanager", "PC Manager", "System Suite", "All-in-One Studio & Windows Maintenance Suite", "PCManagerLite", "Launch_PCManagerLite.vbs", "", "PCManagerLite.ico", "nilly-pc-manager-tools", "https://nillygraphics.com/product/nilly-pc-manager-tools/el/", Color.FromArgb(102, 217, 239)));
-            list.Add(Make("nillyclip", "NillyClip Pro", "Clipboard & Vault", "Ιστορικό προχείρου και τοπική κλειδοθήκη", "NillyClipPro", "NillyClipPro.exe", "NillyClipPro", "NillyClipPro.ico", "nillyclip-pro", "https://nillygraphics.com/product/nillyclip-pro/el/", Color.FromArgb(252, 150, 31)));
+            list.Add(Make("nillyclip", "NillyClip Pro", "Clipboard & Vault", "Ιστορικό προχείρου & Double-Layer Κλειδοθήκη (AES-256 + DPAPI Vault)", "NillyClipPro", "NillyClipPro.exe", "NillyClipPro", "NillyClipPro.ico", "nillyclip-pro", "https://nillygraphics.com/product/nillyclip-pro/el/", Color.FromArgb(252, 150, 31)));
+            list.Add(Make("nillyzip", "NillyZip Pro", "ZIP · RAR · 7Z", "Πανάλαφρο εργαλείο συμπίεσης & αποσυμπίεσης (WinRAR / 7-Zip alternative)", "NillyZipPro", "NillyZipPro.exe", "NillyZipPro", "NillyZipPro.ico", "nillyzip-pro", "https://nillygraphics.com/", Color.FromArgb(102, 217, 239)));
+            list.Add(Make("nillysearch", "NillySearch Pro", "Instant Search", "Αστραπιαία αναζήτηση αρχείων Win32 (0 MB idle RAM)", "NillySearchPro", "NillySearchPro.exe", "NillySearchPro", "NillySearchPro.ico", "nillysearch-pro", "https://nillygraphics.com/", Color.FromArgb(102, 217, 239)));
+            list.Add(Make("nillytask", "NillyTask Pro", "Task Manager", "Πανάλαφρος Native Task Manager, Live CPU/RAM Γραφήματα & Ανάσα RAM", "NillyTaskPro", "NillyTaskPro.exe", "NillyTaskPro", "NillyTaskPro.ico", "nillytask-pro", "https://nillygraphics.com/", Color.FromArgb(166, 226, 46)));
+            list.Add(Make("nillyfiles", "NillyFiles Pro", "File Explorer", "Πανάλαφρος Native File Explorer με Καρτέλες, Διπλό Παράθυρο & 0 MB Idle RAM", "NillyFilesPro", "NillyFilesPro.exe", "NillyFilesPro", "NillyFilesPro.ico", "nillyfiles-pro", "https://nillygraphics.com/", Color.FromArgb(252, 150, 31)));
             return list;
         }
 
