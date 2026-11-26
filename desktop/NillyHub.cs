@@ -31,8 +31,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.15.0")]
-[assembly: AssemblyFileVersion("1.6.15.0")]
+[assembly: AssemblyVersion("1.6.16.0")]
+[assembly: AssemblyFileVersion("1.6.16.0")]
 
 namespace NillyHub
 {
@@ -1861,12 +1861,12 @@ namespace NillyHub
             miUpd.Click += delegate { if (UpdateClicked != null) UpdateClicked(App); };
             cms.Items.Add(miUpd);
 
-            ToolStripMenuItem miDir = new ToolStripMenuItem("📁  Άνοιγμα τοπικού φακέλου");
+            ToolStripMenuItem miDir = new ToolStripMenuItem("Άνοιγμα τοπικού φακέλου");
             miDir.Enabled = App.IsInstalled;
             miDir.Click += delegate { if (FolderClicked != null) FolderClicked(App); };
             cms.Items.Add(miDir);
 
-            ToolStripMenuItem miWeb = new ToolStripMenuItem("🌐  Σελίδα nillygraphics.com / GitHub");
+            ToolStripMenuItem miWeb = new ToolStripMenuItem("Σελίδα nillygraphics.com / GitHub");
             miWeb.Click += delegate { if (SiteClicked != null) SiteClicked(App); };
             cms.Items.Add(miWeb);
 
@@ -2230,7 +2230,7 @@ namespace NillyHub
             _lblCount = new Label { Left = 41, Top = 20, Width = 134, Height = 14, Font = FontSub, Text = "Nilly graphics Suite", UseMnemonic = false };
             _leftBrand.Controls.AddRange(new Control[] { picLogo, _lblTitle, _lblCount });
 
-            _btnTheme = MkPill("Light", 48, delegate { _dark = !_dark; SaveSuiteDark(_dark); ApplyTheme(); });
+            _btnTheme = MkPill("◐", 34, delegate { _dark = !_dark; SaveSuiteDark(_dark); ApplyTheme(); });
             _btnWinSwap = MkPill("⇄ Windows", 92, delegate { OpenWindowsSwitchWizard(); });
             _btnSuiteAll = MkPill("⇄ Σουίτα & Win Defaults", 174, delegate { InstallOrUpdateFullSuite(); });
             _btnCheck = MkPill("↻ Sync", 62, delegate { CheckGitHubUpdatesAsync(true); });
@@ -2486,13 +2486,13 @@ namespace NillyHub
         public void ApplyTheme()
         {
             Native.SetDarkTitlebar(Handle, _dark);
-            Color bgMain = _dark ? Color.FromArgb(20, 21, 25) : Color.FromArgb(242, 244, 248);
-            Color bgTop = _dark ? Color.FromArgb(26, 28, 33) : Color.White;
-            Color fgMain = _dark ? Color.FromArgb(242, 244, 248) : Color.FromArgb(22, 24, 30);
-            Color fgMuted = _dark ? Color.FromArgb(142, 150, 165) : Color.FromArgb(95, 105, 118);
-            Color btnBg = _dark ? Color.FromArgb(36, 39, 46) : Color.FromArgb(236, 240, 246);
-            Color border = _dark ? Color.FromArgb(52, 56, 66) : Color.FromArgb(214, 220, 228);
-            Color orange = Color.FromArgb(252, 150, 31);
+            Color bgMain = _dark ? Color.FromArgb(24, 26, 31) : Color.FromArgb(248, 249, 251);
+            Color bgTop = _dark ? Color.FromArgb(31, 34, 41) : Color.White;
+            Color fgMain = _dark ? Color.FromArgb(236, 239, 244) : Color.FromArgb(28, 32, 40);
+            Color fgMuted = _dark ? Color.FromArgb(148, 157, 174) : Color.FromArgb(98, 108, 125);
+            Color btnBg = _dark ? Color.FromArgb(39, 43, 52) : Color.White;
+            Color border = _dark ? Color.FromArgb(52, 57, 68) : Color.FromArgb(210, 216, 226);
+            Color orange = _dark ? Color.FromArgb(252, 150, 31) : Color.FromArgb(224, 118, 12);
 
             BackColor = bgMain;
             _grid.BackColor = bgMain;
@@ -2505,9 +2505,9 @@ namespace NillyHub
             _lblCount.ForeColor = fgMuted;
             _lblStatus.ForeColor = fgMuted;
             _lblCredit.ForeColor = orange;
-            _txtSearch.BackColor = _dark ? Color.FromArgb(22, 24, 28) : Color.White;
+            _txtSearch.BackColor = _dark ? Color.FromArgb(24, 26, 31) : Color.White;
             _txtSearch.ForeColor = fgMain;
-            _btnTheme.Text = _dark ? "Light" : "Dark";
+            _btnTheme.Text = "◐";
 
             foreach (Button b in new Button[] { _btnCheck, _btnWinSwap, _btnTheme })
             { b.BackColor = btnBg; b.ForeColor = fgMain; b.FlatAppearance.BorderColor = border; }
@@ -2518,10 +2518,7 @@ namespace NillyHub
 
         private void StyleSuiteAllBtn()
         {
-            Color orange = Color.FromArgb(252, 150, 31);
-            Color cyan = Color.FromArgb(102, 217, 239);
-            Color btnBg = _dark ? Color.FromArgb(36, 39, 46) : Color.FromArgb(236, 240, 246);
-            Color border = _dark ? Color.FromArgb(52, 56, 66) : Color.FromArgb(214, 220, 228);
+            Color orange = _dark ? Color.FromArgb(252, 150, 31) : Color.FromArgb(224, 118, 12);
 
             int missing = 0, upd = 0;
             for (int i = 0; i < _apps.Count; i++)
@@ -2539,7 +2536,9 @@ namespace NillyHub
             {
                 _btnSuiteAll.Text = "↓ Σουίτα + Win Defaults";
                 _btnSuiteAll.Enabled = true;
-                _btnSuiteAll.BackColor = cyan; _btnSuiteAll.ForeColor = Color.FromArgb(14, 18, 24); _btnSuiteAll.FlatAppearance.BorderColor = cyan;
+                _btnSuiteAll.BackColor = _dark ? Color.FromArgb(39, 43, 52) : Color.FromArgb(255, 247, 236);
+                _btnSuiteAll.ForeColor = orange;
+                _btnSuiteAll.FlatAppearance.BorderColor = orange;
             }
             else if (upd > 0)
             {
@@ -2559,10 +2558,10 @@ namespace NillyHub
 
         private void StylePills()
         {
-            Color orange = Color.FromArgb(252, 150, 31);
-            Color btnBg = _dark ? Color.FromArgb(36, 39, 46) : Color.FromArgb(236, 240, 246);
-            Color fg = _dark ? Color.FromArgb(228, 232, 240) : Color.FromArgb(25, 28, 34);
-            Color border = _dark ? Color.FromArgb(52, 56, 66) : Color.FromArgb(214, 220, 228);
+            Color orange = _dark ? Color.FromArgb(252, 150, 31) : Color.FromArgb(224, 118, 12);
+            Color btnBg = _dark ? Color.FromArgb(39, 43, 52) : Color.FromArgb(240, 242, 246);
+            Color fg = _dark ? Color.FromArgb(236, 239, 244) : Color.FromArgb(28, 32, 40);
+            Color border = _dark ? Color.FromArgb(52, 57, 68) : Color.FromArgb(210, 216, 226);
             SetPill(_btnFAll, _filterMode == "all", orange, btnBg, fg, border);
             SetPill(_btnFInst, _filterMode == "installed", orange, btnBg, fg, border);
             SetPill(_btnFUpd, _filterMode == "updates", orange, btnBg, fg, border);
