@@ -31,8 +31,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.16.0")]
-[assembly: AssemblyFileVersion("1.6.16.0")]
+[assembly: AssemblyVersion("1.6.17.0")]
+[assembly: AssemblyFileVersion("1.6.17.0")]
 
 namespace NillyHub
 {
@@ -482,11 +482,13 @@ namespace NillyHub
         public long LocalExeBytes;
         public DateTime LocalBuildUtc;
         public string InstalledPushedStamp;
+        public string LocalVersion;
 
         public bool FoundOnGitHub;
         public string DefaultBranch = "main";
         public DateTime RemotePushedUtc;
         public string RemotePushedRaw;
+        public string RemoteVersion;
         public string RemoteHomepage;
         public bool HasUpdate;
         public bool Busy;
@@ -774,13 +776,15 @@ namespace NillyHub
             return null;
         }
 
-        public static bool TryCheckHubSelfUpdate(DateTime hubRepoPushedUtc, bool forceManual, out string newTag, out string zipUrl, out string sha256, out long sizeBytes)
+        public static bool TryCheckHubSelfUpdate(DateTime hubRepoPushedUtc, string catalogHubVer, bool forceManual, out string newTag, out string zipUrl, out string sha256, out long sizeBytes)
         {
             newTag = null; zipUrl = null; sha256 = null; sizeBytes = 0;
             try
             {
                 Version curVer = Assembly.GetExecutingAssembly().GetName().Version;
-                if (!forceManual && hubRepoPushedUtc != DateTime.MinValue)
+                Version catVer;
+                bool catalogNewer = TryParseTagVersion(catalogHubVer, out catVer) && catVer > curVer;
+                if (!forceManual && !catalogNewer && hubRepoPushedUtc != DateTime.MinValue)
                 {
                     DateTime exeBuilt = File.GetLastWriteTimeUtc(Application.ExecutablePath);
                     if (hubRepoPushedUtc < exeBuilt.AddMinutes(-5))
@@ -796,18 +800,29 @@ namespace NillyHub
             catch { return false; }
         }
 
-        private static bool TryParseTagVersion(string tag, out Version ver)
+        public static bool TryParseTagVersion(string tag, out Version ver)
         {
             ver = null;
-            if (string.IsNullOrEmpty(tag) || !tag.StartsWith("v", StringComparison.OrdinalIgnoreCase)) return false;
-            string[] parts = tag.Substring(1).Split('.');
-            if (parts.Length < 2 || parts.Length > 3) return false;
+            if (string.IsNullOrEmpty(tag)) return false;
+            string s = tag.Trim();
+            if (s.StartsWith("v", StringComparison.OrdinalIgnoreCase)) s = s.Substring(1);
+            string[] parts = s.Split('.');
+            if (parts.Length < 2 || parts.Length > 4) return false;
             int maj, min, pat = 0;
             if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out maj)) return false;
             if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out min)) return false;
-            if (parts.Length == 3 && !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out pat)) return false;
+            if (parts.Length >= 3 && !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out pat)) return false;
             ver = new Version(maj, min, pat, 0);
             return true;
+        }
+
+        public static string NormalizeVersionTag(string raw)
+        {
+            Version v;
+            if (!TryParseTagVersion(raw, out v)) return null;
+            return v.Build > 0
+                ? string.Format(CultureInfo.InvariantCulture, "v{0}.{1}.{2}", v.Major, v.Minor, v.Build)
+                : string.Format(CultureInfo.InvariantCulture, "v{0}.{1}", v.Major, v.Minor);
         }
 
         public static string ResolvePortableZip(string repoName, out string tag, out string digest, out long size)
@@ -990,6 +1005,20 @@ namespace NillyHub
             return apps;
         }
 
+        public static string CatalogHubVersion;
+
+        public static string ParseCatalogHubVersion(string json)
+        {
+            if (string.IsNullOrEmpty(json) || json.Length > 256 * 1024) return null;
+            try
+            {
+                Dictionary<string, object> root = MiniJson.Parse(json) as Dictionary<string, object>;
+                if (root == null) return null;
+                return GitHubClient.NormalizeVersionTag(JStr(root, "hubVersion"));
+            }
+            catch { return null; }
+        }
+
         // Dynamically merges new Nilly Suite apps from catalog.json (hosted in nillynp/nillyhub) with strict validation!
         public static bool MergeCatalogJson(List<SuiteApp> apps, string json, string suiteRoot, ref string suiteSizeLabel)
         {
@@ -1005,6 +1034,8 @@ namespace NillyHub
                     string lbl = szObj as string;
                     if (!string.IsNullOrEmpty(lbl) && lbl.Length <= 24) suiteSizeLabel = lbl;
                 }
+                string hv = GitHubClient.NormalizeVersionTag(JStr(root, "hubVersion"));
+                if (!string.IsNullOrEmpty(hv)) CatalogHubVersion = hv;
                 object appsObj;
                 if (!root.TryGetValue("apps", out appsObj)) return false;
                 List<object> list = appsObj as List<object>;
@@ -1057,10 +1088,21 @@ namespace NillyHub
                         existingRepos.Add(repo);
                         addedAny = true;
                     }
-                    // Populate rich resource comparison fields for BOTH existing & newly discovered apps!
+                    // Populate rich resource comparison fields & latest release version for BOTH existing & newly discovered apps!
                     ApplyCompareStrings(targetApp,
                         JStr(o, "replaces"), JStr(o, "diskNilly"), JStr(o, "diskWin"),
                         JStr(o, "ramNilly"), JStr(o, "ramWin"), JStr(o, "cpuGpuNilly"), JStr(o, "cpuGpuWin"));
+                    string latestVer = GitHubClient.NormalizeVersionTag(JStr(o, "latestVersion"));
+                    if (!string.IsNullOrEmpty(latestVer))
+                    {
+                        Version incV, curRemV;
+                        if (!GitHubClient.TryParseTagVersion(targetApp.RemoteVersion, out curRemV) ||
+                            (GitHubClient.TryParseTagVersion(latestVer, out incV) && incV >= curRemV))
+                        {
+                            targetApp.RemoteVersion = latestVer;
+                            ComputeUpdateFlag(targetApp);
+                        }
+                    }
                 }
             }
             catch { }
@@ -1272,19 +1314,70 @@ namespace NillyHub
                     app.LocalBuildUtc = fi.LastWriteTimeUtc;
                     string stampPath = Path.Combine(app.LocalDir, ".nilly_pushed");
                     app.InstalledPushedStamp = File.Exists(stampPath) ? File.ReadAllText(stampPath, Encoding.UTF8).Trim() : null;
+                    app.LocalVersion = ReadLocalVersion(app);
                 }
                 catch { }
             }
             else
             {
-                app.LocalExeBytes = 0; app.LocalBuildUtc = DateTime.MinValue; app.InstalledPushedStamp = null;
+                app.LocalExeBytes = 0; app.LocalBuildUtc = DateTime.MinValue; app.InstalledPushedStamp = null; app.LocalVersion = null;
             }
             ComputeUpdateFlag(app);
         }
 
+        public static string ReadLocalVersion(SuiteApp app)
+        {
+            if (app == null || !app.IsInstalled || string.IsNullOrEmpty(app.LocalLaunchPath)) return null;
+            try
+            {
+                if (app.LocalLaunchPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && File.Exists(app.LocalLaunchPath))
+                {
+                    FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(app.LocalLaunchPath);
+                    string fv = !string.IsNullOrEmpty(fvi.FileVersion) ? fvi.FileVersion : fvi.ProductVersion;
+                    string norm = GitHubClient.NormalizeVersionTag(fv);
+                    if (!string.IsNullOrEmpty(norm)) return norm;
+                }
+                else if (string.Equals(app.RepoName, "nilly-pc-manager-tools", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(app.LocalDir))
+                {
+                    string ps1 = Path.Combine(app.LocalDir, "PCManagerLite.ps1");
+                    if (File.Exists(ps1))
+                    {
+                        using (StreamReader sr = new StreamReader(ps1, Encoding.UTF8))
+                        {
+                            for (int i = 0; i < 60 && !sr.EndOfStream; i++)
+                            {
+                                string line = sr.ReadLine();
+                                if (line == null) break;
+                                Match m = Regex.Match(line, @"\$AppVersion\s*=\s*[""']([0-9]+\.[0-9]+(?:\.[0-9]+)?)[""']");
+                                if (m.Success) return GitHubClient.NormalizeVersionTag(m.Groups[1].Value);
+                            }
+                        }
+                    }
+                }
+                if (!string.IsNullOrEmpty(app.LocalDir))
+                {
+                    string vf = Path.Combine(app.LocalDir, ".nilly_version");
+                    if (File.Exists(vf))
+                    {
+                        string norm = GitHubClient.NormalizeVersionTag(File.ReadAllText(vf, Encoding.UTF8).Trim());
+                        if (!string.IsNullOrEmpty(norm)) return norm;
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
         public static void ComputeUpdateFlag(SuiteApp app)
         {
-            if (!app.IsInstalled || !app.FoundOnGitHub || app.RemotePushedUtc == DateTime.MinValue) { app.HasUpdate = false; return; }
+            if (!app.IsInstalled) { app.HasUpdate = false; return; }
+            Version locVer, remVer;
+            if (GitHubClient.TryParseTagVersion(app.LocalVersion, out locVer) && GitHubClient.TryParseTagVersion(app.RemoteVersion, out remVer))
+            {
+                app.HasUpdate = (remVer > locVer);
+                return;
+            }
+            if (!app.FoundOnGitHub || app.RemotePushedUtc == DateTime.MinValue) { app.HasUpdate = false; return; }
             if (!string.IsNullOrEmpty(app.InstalledPushedStamp))
             {
                 app.HasUpdate = !app.InstalledPushedStamp.Equals(app.RemotePushedRaw, StringComparison.OrdinalIgnoreCase);
@@ -1452,6 +1545,12 @@ namespace NillyHub
                         throw new FileNotFoundException("Ο installer δεν δημιούργησε το αναμενόμενο αρχείο εκκίνησης.");
                     if (!string.IsNullOrEmpty(app.RemotePushedRaw))
                         File.WriteAllText(Path.Combine(target, ".nilly_pushed"), app.RemotePushedRaw, Encoding.UTF8);
+                    string normTag = GitHubClient.NormalizeVersionTag(tag);
+                    if (!string.IsNullOrEmpty(normTag))
+                    {
+                        File.WriteAllText(Path.Combine(target, ".nilly_version"), normTag, Encoding.UTF8);
+                        app.RemoteVersion = normTag;
+                    }
 
                     // Verified clean install: remove temporary rollback backup so disk stays spotless!
                     if (previousMoved && Directory.Exists(backup))
@@ -1684,8 +1783,24 @@ namespace NillyHub
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
 
             Rectangle subR = new Rectangle(8, 100, Width - 16, 17);
-            string subTxt = App.IsInstalled ? App.ShortTag : (App.FoundOnGitHub ? (App.ShortTag + " · GitHub") : App.ShortTag);
-            TextRenderer.DrawText(g, subTxt, FontSub, subR, fgMuted,
+            string subTxt;
+            Color subCol = fgMuted;
+            if (App.IsInstalled && App.HasUpdate && !string.IsNullOrEmpty(App.LocalVersion) && !string.IsNullOrEmpty(App.RemoteVersion))
+            {
+                subTxt = App.LocalVersion + " → " + App.RemoteVersion;
+                subCol = Color.FromArgb(252, 150, 31);
+            }
+            else if (App.IsInstalled)
+            {
+                subTxt = !string.IsNullOrEmpty(App.LocalVersion) ? (App.LocalVersion + " · " + App.ShortTag) : App.ShortTag;
+            }
+            else
+            {
+                subTxt = !string.IsNullOrEmpty(App.RemoteVersion)
+                    ? (App.ShortTag + " · " + App.RemoteVersion)
+                    : (App.FoundOnGitHub ? (App.ShortTag + " · GitHub") : App.ShortTag);
+            }
+            TextRenderer.DrawText(g, subTxt, FontSub, subR, subCol,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
 
             using (Pen dp = new Pen(divCol, 1f))
@@ -1805,7 +1920,13 @@ namespace NillyHub
             {
                 _lastTipZone = bi;
                 if (bi == 0) _tip.SetToolTip(this, App.IsInstalled ? "Άνοιγμα" : "Εγκατάσταση");
-                else if (bi == 1) _tip.SetToolTip(this, App.HasUpdate ? "Ενημέρωση" : "Update");
+                else if (bi == 1)
+                {
+                    string vTip = (App.HasUpdate && !string.IsNullOrEmpty(App.LocalVersion) && !string.IsNullOrEmpty(App.RemoteVersion))
+                        ? ("Ενημέρωση " + App.LocalVersion + " → " + App.RemoteVersion)
+                        : (!string.IsNullOrEmpty(App.LocalVersion) ? ("Ενημερωμένο (" + App.LocalVersion + ") · Επανεγκατάσταση") : (App.HasUpdate ? "Ενημέρωση" : "Update"));
+                    _tip.SetToolTip(this, vTip);
+                }
                 else if (bi == 2) _tip.SetToolTip(this, "Φάκελος");
                 else if (bi == 3) _tip.SetToolTip(this, "Σελίδα");
                 else if (bi == 4) _tip.SetToolTip(this, "Σύγκριση");
@@ -1935,7 +2056,14 @@ namespace NillyHub
             // Header strip
             Panel hdr = new Panel { Left = 0, Top = 0, Width = 640, Height = 76, BackColor = cardBg };
             PictureBox pic = new PictureBox { Left = 18, Top = 14, Width = 48, Height = 48, Image = _iconBmp, SizeMode = PictureBoxSizeMode.Zoom };
-            Label lblName = new Label { Left = 78, Top = 12, Width = 540, Height = 24, Font = FTitle, ForeColor = ForeColor, Text = app.DisplayName + "  ·  " + app.ShortTag, UseMnemonic = false };
+            string verSuffix = "";
+            if (app.IsInstalled && app.HasUpdate && !string.IsNullOrEmpty(app.LocalVersion) && !string.IsNullOrEmpty(app.RemoteVersion))
+                verSuffix = "  ·  " + app.LocalVersion + " → " + app.RemoteVersion;
+            else if (app.IsInstalled && !string.IsNullOrEmpty(app.LocalVersion))
+                verSuffix = "  ·  " + app.LocalVersion;
+            else if (!string.IsNullOrEmpty(app.RemoteVersion))
+                verSuffix = "  ·  " + app.RemoteVersion;
+            Label lblName = new Label { Left = 78, Top = 12, Width = 540, Height = 24, Font = FTitle, ForeColor = ForeColor, Text = app.DisplayName + verSuffix + "  ·  " + app.ShortTag, UseMnemonic = false };
             Label lblDesc = new Label { Left = 79, Top = 38, Width = 540, Height = 28, Font = FSub, ForeColor = muted, Text = app.Description, UseMnemonic = false };
             hdr.Controls.AddRange(new Control[] { pic, lblName, lblDesc });
 
@@ -2224,10 +2352,10 @@ namespace NillyHub
             // Responsive Header Bar (auto-adapts cleanly across 1-row, 2-row, or 3-row widths — NEVER clips NillyHub!)
             _header = new Panel { Dock = DockStyle.Top, Height = 56 };
 
-            _leftBrand = new Panel { Location = new Point(14, 11), Size = new Size(176, 34) };
+            _leftBrand = new Panel { Location = new Point(14, 11), Size = new Size(190, 34) };
             PictureBox picLogo = new PictureBox { Left = 0, Top = 1, Width = 32, Height = 32, Image = _hubLogoBmp, SizeMode = PictureBoxSizeMode.Zoom };
-            _lblTitle = new Label { Left = 40, Top = 0, Width = 134, Height = 20, Font = FontBrand, Text = "NillyHub", UseMnemonic = false };
-            _lblCount = new Label { Left = 41, Top = 20, Width = 134, Height = 14, Font = FontSub, Text = "Nilly graphics Suite", UseMnemonic = false };
+            _lblTitle = new Label { Left = 40, Top = 0, Width = 148, Height = 20, Font = FontBrand, Text = "NillyHub", UseMnemonic = false };
+            _lblCount = new Label { Left = 41, Top = 20, Width = 148, Height = 14, Font = FontSub, Text = "Nilly graphics Suite", UseMnemonic = false };
             _leftBrand.Controls.AddRange(new Control[] { picLogo, _lblTitle, _lblCount });
 
             _btnTheme = MkPill("◐", 34, delegate { _dark = !_dark; SaveSuiteDark(_dark); ApplyTheme(); });
@@ -2432,6 +2560,17 @@ namespace NillyHub
 
         private void LoadInstantCache()
         {
+            // Merge bundled catalog.json first (instant accurate versions offline), then any newer live-cached catalog on top
+            try
+            {
+                string localCat = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "catalog.json");
+                if (File.Exists(localCat))
+                {
+                    SuiteCatalog.MergeCatalogJson(_apps, File.ReadAllText(localCat, Encoding.UTF8), _suiteRoot, ref _suiteSizeLabel);
+                    EnsureTilesForAllApps();
+                }
+            }
+            catch { }
             string catJson = GitHubClient.LoadCachedCatalogJson(_suiteRoot);
             if (!string.IsNullOrEmpty(catJson))
             {
@@ -2602,7 +2741,8 @@ namespace NillyHub
             }
             _grid.ResumeLayout(true);
 
-            _lblCount.Text = inst + "/" + _apps.Count + " εγκατεστημένα";
+            string hubVer = GitHubClient.NormalizeVersionTag(Assembly.GetExecutingAssembly().GetName().Version.ToString()) ?? "v1.6";
+            _lblCount.Text = hubVer + " · " + inst + "/" + _apps.Count + " τοπικά";
             _btnFAll.Text = "Όλα (" + _apps.Count + ")";
             _btnFInst.Text = "Τοπικά (" + inst + ")";
             _btnFUpd.Text = upd > 0 ? ("Updates (" + upd + ")") : "Updates";
@@ -2728,15 +2868,16 @@ namespace NillyHub
                         try { File.Delete(Path.Combine(_suiteRoot, ".nillyhub_repos.etag")); } catch { }
                     }
                     try { liveCatalogJson = GitHubClient.FetchLiveCatalogJson(_suiteRoot, !forceManual); } catch { }
+                    string catHubVer = SuiteCatalog.ParseCatalogHubVersion(liveCatalogJson) ?? SuiteCatalog.CatalogHubVersion;
                     repos = GitHubClient.FetchAllOwnerReposCached(_suiteRoot, !forceManual, out src);
+                    DateTime hubPushed = DateTime.MinValue;
                     if (repos != null)
                     {
-                        DateTime hubPushed = DateTime.MinValue;
                         for (int i = 0; i < repos.Count; i++)
                             if (string.Equals(repos[i].Name, "nillyhub", StringComparison.OrdinalIgnoreCase))
                             { hubPushed = repos[i].PushedAtUtc; break; }
-                        hasHubUpd = GitHubClient.TryCheckHubSelfUpdate(hubPushed, forceManual, out hTag, out hUrl, out hSha, out hSize);
                     }
+                    hasHubUpd = GitHubClient.TryCheckHubSelfUpdate(hubPushed, catHubVer, forceManual, out hTag, out hUrl, out hSha, out hSize);
                 }
                 catch (Exception ex) { err = ex.Message; }
                 try
