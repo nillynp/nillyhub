@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // NillyHub v1.2 — Ultra-Light Minimal Nilly Suite Launcher & Live GitHub Updater
 // created by Nilly graphics (Nillygraphics · Sotiris Christos) — https://nillygraphics.com/
 // Strictly C# 5 compatible (.NET Framework 4.x csc.exe — 0 external DLLs)
@@ -31,8 +31,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.17.0")]
-[assembly: AssemblyFileVersion("1.6.17.0")]
+[assembly: AssemblyVersion("1.6.18.0")]
+[assembly: AssemblyFileVersion("1.6.18.0")]
 
 namespace NillyHub
 {
@@ -1733,16 +1733,16 @@ namespace NillyHub
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
-            Color outerBg = _dark ? Color.FromArgb(20, 21, 25) : Color.FromArgb(242, 244, 248);
+            Color outerBg = _dark ? Color.FromArgb(29, 31, 32) : Color.FromArgb(248, 249, 250);
             Color cardBg = _dark
-                ? (_tileHover ? Color.FromArgb(35, 37, 44) : Color.FromArgb(29, 31, 36))
-                : (_tileHover ? Color.FromArgb(255, 255, 255) : Color.FromArgb(250, 251, 253));
+                ? (_tileHover ? Color.FromArgb(42, 45, 48) : Color.FromArgb(34, 36, 38))
+                : (_tileHover ? Color.FromArgb(255, 255, 255) : Color.FromArgb(252, 253, 254));
             Color border = _tileHover
                 ? Color.FromArgb(252, 150, 31)
-                : (App.HasUpdate ? Color.FromArgb(180, 110, 26) : (_dark ? Color.FromArgb(46, 49, 58) : Color.FromArgb(218, 224, 232)));
-            Color fgTitle = _dark ? Color.FromArgb(242, 244, 248) : Color.FromArgb(22, 24, 30);
-            Color fgMuted = _dark ? Color.FromArgb(142, 150, 165) : Color.FromArgb(100, 110, 124);
-            Color divCol = _dark ? Color.FromArgb(42, 45, 54) : Color.FromArgb(230, 234, 240);
+                : (App.HasUpdate ? Color.FromArgb(180, 110, 26) : (_dark ? Color.FromArgb(54, 57, 61) : Color.FromArgb(218, 224, 232)));
+            Color fgTitle = _dark ? Color.FromArgb(242, 244, 247) : Color.FromArgb(26, 29, 33);
+            Color fgMuted = _dark ? Color.FromArgb(154, 160, 168) : Color.FromArgb(95, 104, 116);
+            Color divCol = _dark ? Color.FromArgb(47, 50, 54) : Color.FromArgb(230, 234, 240);
 
             g.Clear(outerBg);
 
@@ -2254,12 +2254,12 @@ namespace NillyHub
         private Panel _header;
         private Label _lblTitle, _lblCount;
         private TextBox _txtSearch;
-        private Button _btnFAll, _btnFInst, _btnFUpd, _btnCheck, _btnSuiteAll, _btnWinSwap, _btnTheme;
+        private AkButton _btnFAll, _btnFInst, _btnFUpd, _btnCheck, _btnSuiteAll, _btnWinSwap, _btnTheme;
 
         private DoubleBufferedFlowPanel _grid;
         private Panel _footer;
         private Label _lblStatus, _lblCredit;
-        private Button _btnHubUpd;
+        private AkButton _btnHubUpd;
         private string _hubUpdTag, _hubUpdUrl, _hubUpdSha;
         private long _hubUpdSize;
         private bool _hubUpdating = false;
@@ -2358,17 +2358,17 @@ namespace NillyHub
             _lblCount = new Label { Left = 41, Top = 20, Width = 148, Height = 14, Font = FontSub, Text = "Nilly graphics Suite", UseMnemonic = false };
             _leftBrand.Controls.AddRange(new Control[] { picLogo, _lblTitle, _lblCount });
 
-            _btnTheme = MkPill("◐", 34, delegate { _dark = !_dark; SaveSuiteDark(_dark); ApplyTheme(); });
-            _btnWinSwap = MkPill("⇄ Windows", 92, delegate { OpenWindowsSwitchWizard(); });
-            _btnSuiteAll = MkPill("⇄ Σουίτα & Win Defaults", 174, delegate { InstallOrUpdateFullSuite(); });
-            _btnCheck = MkPill("↻ Sync", 62, delegate { CheckGitHubUpdatesAsync(true); });
+            _btnTheme = MkPill("", 34, AkKind.Secondary, AkIcon.Sun, delegate { _dark = !_dark; SaveSuiteDark(_dark); ApplyTheme(); });
+            _btnWinSwap = MkPill("Windows", 98, AkKind.Secondary, AkIcon.Swap, delegate { OpenWindowsSwitchWizard(); });
+            _btnSuiteAll = MkPill("Σουίτα & Win Defaults", 178, AkKind.AccentOutline, AkIcon.Download, delegate { InstallOrUpdateFullSuite(); });
+            _btnCheck = MkPill("Sync", 74, AkKind.Secondary, AkIcon.Refresh, delegate { CheckGitHubUpdatesAsync(true); });
 
             _txtSearch = new TextBox { Width = 140, Height = 26, BorderStyle = BorderStyle.FixedSingle, Font = FontInput };
             _txtSearch.TextChanged += delegate { ApplyFilters(); };
 
-            _btnFUpd = MkPill("Updates", 82, delegate { _filterMode = "updates"; ApplyFilters(); StylePills(); });
-            _btnFInst = MkPill("Τοπικά", 86, delegate { _filterMode = "installed"; ApplyFilters(); StylePills(); });
-            _btnFAll = MkPill("Όλα", 74, delegate { _filterMode = "all"; ApplyFilters(); StylePills(); });
+            _btnFUpd = MkPill("Updates", 84, AkKind.Tab, AkIcon.None, delegate { _filterMode = "updates"; ApplyFilters(); StylePills(); });
+            _btnFInst = MkPill("Τοπικά", 90, AkKind.Tab, AkIcon.None, delegate { _filterMode = "installed"; ApplyFilters(); StylePills(); });
+            _btnFAll = MkPill("Όλα", 78, AkKind.Tab, AkIcon.None, delegate { _filterMode = "all"; ApplyFilters(); StylePills(); });
 
             _sharedTip.SetToolTip(_btnCheck, "Συγχρονισμός GitHub");
             _sharedTip.SetToolTip(_btnSuiteAll, "Εγκαθιστά όλη τη NillyGraphics Suite & αντικαθιστά με ασφάλεια τα βαριά Windows Defaults (Zero Admin · SHA-256 · 100% αναστρέψιμο)");
@@ -2377,19 +2377,27 @@ namespace NillyHub
             _sharedTip.SetToolTip(_txtSearch, "Αναζήτηση (Ctrl+F)");
 
             _header.Controls.AddRange(new Control[] { _leftBrand, _btnFAll, _btnFInst, _btnFUpd, _txtSearch, _btnCheck, _btnSuiteAll, _btnWinSwap, _btnTheme });
-            _header.Resize += delegate { LayoutResponsiveHeader(); };
+            _header.Paint += delegate(object s, PaintEventArgs pe)
+            {
+                using (Pen p = new Pen(_dark ? Color.FromArgb(54, 57, 61) : Color.FromArgb(222, 226, 232)))
+                    pe.Graphics.DrawLine(p, 0, _header.Height - 1, _header.Width, _header.Height - 1);
+            };
+            _header.Resize += delegate { LayoutResponsiveHeader(); _header.Invalidate(); };
 
             // Minimal Footer (docked at bottom)
             _footer = new Panel { Dock = DockStyle.Bottom, Height = 28, Padding = new Padding(14, 2, 14, 2) };
+            _footer.Paint += delegate(object s, PaintEventArgs pe)
+            {
+                using (Pen p = new Pen(_dark ? Color.FromArgb(54, 57, 61) : Color.FromArgb(222, 226, 232)))
+                    pe.Graphics.DrawLine(p, 0, 0, _footer.Width, 0);
+            };
             _lblStatus = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = FontFooter, UseMnemonic = false, Text = "Έτοιμο" };
-            _btnHubUpd = new Button
+            _btnHubUpd = new AkButton
             {
                 Dock = DockStyle.Right, Width = 148, Visible = false,
-                FlatStyle = FlatStyle.Flat, Font = FontPill, Cursor = Cursors.Hand, TabStop = false,
-                BackColor = Color.FromArgb(252, 150, 31), ForeColor = Color.FromArgb(14, 18, 24),
-                Text = "⬆ Hub Update"
+                Kind = AkKind.Primary, Icon = AkIcon.Download,
+                Font = FontPill, Text = "Hub Update"
             };
-            _btnHubUpd.FlatAppearance.BorderSize = 0;
             _btnHubUpd.Click += delegate { RunHubSelfUpdate(); };
             _sharedTip.SetToolTip(_btnHubUpd, "Αυτόματη SHA-256 ενημέρωση του NillyHub από GitHub");
             _lblCredit = new Label { Dock = DockStyle.Right, Width = 365, TextAlign = ContentAlignment.MiddleRight, Font = FontFooter, Cursor = Cursors.Hand, UseMnemonic = false, Text = "created by Nilly graphics (Sotiris Christos) · nillygraphics.com" };
@@ -2582,14 +2590,13 @@ namespace NillyHub
                 ApplyRepoListToApps(cached, false);
         }
 
-        private static Button MkPill(string txt, int w, EventHandler onClick)
+        private static AkButton MkPill(string txt, int w, AkKind kind, AkIcon icon, EventHandler onClick)
         {
-            Button b = new Button();
-            b.UseMnemonic = false;
-            b.Text = txt; b.Width = w; b.Height = 26;
-            b.FlatStyle = FlatStyle.Flat; b.FlatAppearance.BorderSize = 1;
+            AkButton b = new AkButton();
+            b.Kind = kind;
+            b.Icon = icon;
+            b.Text = txt; b.Width = w; b.Height = 28;
             b.Font = FontPill;
-            b.Cursor = Cursors.Hand; b.TabStop = false;
             b.Margin = new Padding(3, 1, 3, 0);
             b.Click += onClick;
             return b;
@@ -2625,12 +2632,10 @@ namespace NillyHub
         public void ApplyTheme()
         {
             Native.SetDarkTitlebar(Handle, _dark);
-            Color bgMain = _dark ? Color.FromArgb(24, 26, 31) : Color.FromArgb(248, 249, 251);
-            Color bgTop = _dark ? Color.FromArgb(31, 34, 41) : Color.White;
-            Color fgMain = _dark ? Color.FromArgb(236, 239, 244) : Color.FromArgb(28, 32, 40);
-            Color fgMuted = _dark ? Color.FromArgb(148, 157, 174) : Color.FromArgb(98, 108, 125);
-            Color btnBg = _dark ? Color.FromArgb(39, 43, 52) : Color.White;
-            Color border = _dark ? Color.FromArgb(52, 57, 68) : Color.FromArgb(210, 216, 226);
+            Color bgMain = _dark ? Color.FromArgb(29, 31, 32) : Color.FromArgb(248, 249, 250);
+            Color bgTop = _dark ? Color.FromArgb(34, 36, 38) : Color.White;
+            Color fgMain = _dark ? Color.FromArgb(242, 244, 247) : Color.FromArgb(26, 29, 33);
+            Color fgMuted = _dark ? Color.FromArgb(154, 160, 168) : Color.FromArgb(95, 104, 116);
             Color orange = _dark ? Color.FromArgb(252, 150, 31) : Color.FromArgb(224, 118, 12);
 
             BackColor = bgMain;
@@ -2638,27 +2643,27 @@ namespace NillyHub
             Native.SetDarkScrollbars(_grid, _dark);
             _header.BackColor = bgTop;
             _footer.BackColor = bgTop;
-            _suiteBar.BackColor = _dark ? Color.FromArgb(40, 29, 18) : Color.FromArgb(254, 243, 226);
+            _suiteBar.BackColor = _dark ? Color.FromArgb(40, 30, 20) : Color.FromArgb(254, 243, 226);
             _suiteBar.ForeColor = _dark ? Color.FromArgb(255, 185, 95) : Color.FromArgb(146, 64, 14);
             _lblTitle.ForeColor = fgMain;
             _lblCount.ForeColor = fgMuted;
             _lblStatus.ForeColor = fgMuted;
             _lblCredit.ForeColor = orange;
-            _txtSearch.BackColor = _dark ? Color.FromArgb(24, 26, 31) : Color.White;
+            _txtSearch.BackColor = _dark ? Color.FromArgb(24, 26, 27) : Color.White;
             _txtSearch.ForeColor = fgMain;
-            _btnTheme.Text = "◐";
+            _btnTheme.Icon = _dark ? AkIcon.Sun : AkIcon.Moon;
 
-            foreach (Button b in new Button[] { _btnCheck, _btnWinSwap, _btnTheme })
-            { b.BackColor = btnBg; b.ForeColor = fgMain; b.FlatAppearance.BorderColor = border; }
+            foreach (AkButton b in new AkButton[] { _btnCheck, _btnWinSwap, _btnTheme, _btnFAll, _btnFInst, _btnFUpd, _btnSuiteAll, _btnHubUpd })
+            { b.Dark = _dark; b.Invalidate(); }
             StyleSuiteAllBtn();
             StylePills();
+            _header.Invalidate();
+            _footer.Invalidate();
             for (int i = 0; i < _tiles.Count; i++) _tiles[i].RefreshTile(_dark);
         }
 
         private void StyleSuiteAllBtn()
         {
-            Color orange = _dark ? Color.FromArgb(252, 150, 31) : Color.FromArgb(224, 118, 12);
-
             int missing = 0, upd = 0;
             for (int i = 0; i < _apps.Count; i++)
             {
@@ -2667,50 +2672,43 @@ namespace NillyHub
             }
             if (upd > 0 && missing > 0)
             {
-                _btnSuiteAll.Text = "↓ Σουίτα (" + (missing + upd) + ") + Win";
+                _btnSuiteAll.Text = "Σουίτα (" + (missing + upd) + ") + Win";
+                _btnSuiteAll.Kind = AkKind.Primary;
+                _btnSuiteAll.Icon = AkIcon.Download;
                 _btnSuiteAll.Enabled = true;
-                _btnSuiteAll.BackColor = orange; _btnSuiteAll.ForeColor = Color.FromArgb(14, 18, 24); _btnSuiteAll.FlatAppearance.BorderColor = orange;
             }
             else if (missing > 0)
             {
-                _btnSuiteAll.Text = "↓ Σουίτα + Win Defaults";
+                _btnSuiteAll.Text = "Σουίτα + Win Defaults";
+                _btnSuiteAll.Kind = AkKind.AccentOutline;
+                _btnSuiteAll.Icon = AkIcon.Download;
                 _btnSuiteAll.Enabled = true;
-                _btnSuiteAll.BackColor = _dark ? Color.FromArgb(39, 43, 52) : Color.FromArgb(255, 247, 236);
-                _btnSuiteAll.ForeColor = orange;
-                _btnSuiteAll.FlatAppearance.BorderColor = orange;
             }
             else if (upd > 0)
             {
-                _btnSuiteAll.Text = "↓ Update (" + upd + ") + Win";
+                _btnSuiteAll.Text = "Update (" + upd + ") + Win";
+                _btnSuiteAll.Kind = AkKind.Primary;
+                _btnSuiteAll.Icon = AkIcon.Download;
                 _btnSuiteAll.Enabled = true;
-                _btnSuiteAll.BackColor = orange; _btnSuiteAll.ForeColor = Color.FromArgb(14, 18, 24); _btnSuiteAll.FlatAppearance.BorderColor = orange;
             }
             else
             {
-                _btnSuiteAll.Text = "⇄ Σουίτα & Win Defaults";
+                _btnSuiteAll.Text = "Σουίτα & Win Defaults";
+                _btnSuiteAll.Kind = AkKind.AccentOutline;
+                _btnSuiteAll.Icon = AkIcon.Swap;
                 _btnSuiteAll.Enabled = true;
-                _btnSuiteAll.BackColor = _dark ? Color.FromArgb(24, 42, 28) : Color.FromArgb(232, 248, 236);
-                _btnSuiteAll.ForeColor = _dark ? Color.FromArgb(166, 226, 46) : Color.FromArgb(24, 120, 34);
-                _btnSuiteAll.FlatAppearance.BorderColor = _dark ? Color.FromArgb(72, 146, 58) : Color.FromArgb(124, 198, 136);
             }
+            _btnSuiteAll.Dark = _dark;
+            _btnSuiteAll.Invalidate();
         }
 
         private void StylePills()
         {
-            Color orange = _dark ? Color.FromArgb(252, 150, 31) : Color.FromArgb(224, 118, 12);
-            Color btnBg = _dark ? Color.FromArgb(39, 43, 52) : Color.FromArgb(240, 242, 246);
-            Color fg = _dark ? Color.FromArgb(236, 239, 244) : Color.FromArgb(28, 32, 40);
-            Color border = _dark ? Color.FromArgb(52, 57, 68) : Color.FromArgb(210, 216, 226);
-            SetPill(_btnFAll, _filterMode == "all", orange, btnBg, fg, border);
-            SetPill(_btnFInst, _filterMode == "installed", orange, btnBg, fg, border);
-            SetPill(_btnFUpd, _filterMode == "updates", orange, btnBg, fg, border);
-        }
-
-        private static void SetPill(Button b, bool active, Color accent, Color bg, Color fg, Color border)
-        {
-            b.BackColor = active ? accent : bg;
-            b.ForeColor = active ? Color.FromArgb(14, 18, 24) : fg;
-            b.FlatAppearance.BorderColor = active ? accent : border;
+            _btnFAll.Active = (_filterMode == "all");
+            _btnFInst.Active = (_filterMode == "installed");
+            _btnFUpd.Active = (_filterMode == "updates");
+            _btnFAll.Dark = _dark; _btnFInst.Dark = _dark; _btnFUpd.Dark = _dark;
+            _btnFAll.Invalidate(); _btnFInst.Invalidate(); _btnFUpd.Invalidate();
         }
 
         // Zero-allocation instant visibility filter (no Win32 control churn, no icon reload!)
@@ -3389,4 +3387,386 @@ namespace NillyHub
             return 0;
         }
     }
+
+    // ========================================================================
+    // ARIAKIT-INSPIRED MINIMAL VECTOR UI KIT (Zero DLLs · 1.5px Stroke Icons)
+    // ========================================================================
+    internal enum AkKind { Primary, Secondary, Ghost, Tab, AccentOutline, Danger }
+
+    internal enum AkIcon
+    {
+        None, Refresh, Sun, Moon, Search, Pin, Info, Play, Pause, Stop,
+        Plus, Minus, Close, Up, Down, Folder, Copy, Trash, Check, Swap,
+        Download, Link, Split, Pipette, Bolt, List, Filter, Shield, Lock, Unlock,
+        Edit, Save, External, Bold, Italic, Undo, ChevLeft, ChevRight, Star
+    }
+
+    internal static class AkDraw
+    {
+        public static System.Drawing.Drawing2D.GraphicsPath RoundRect(float x, float y, float w, float h, float r)
+        {
+            System.Drawing.Drawing2D.GraphicsPath p = new System.Drawing.Drawing2D.GraphicsPath();
+            float d = System.Math.Min(r * 2f, System.Math.Min(w, h));
+            if (d <= 0.5f) { p.AddRectangle(new System.Drawing.RectangleF(x, y, w, h)); return p; }
+            p.AddArc(x, y, d, d, 180, 90);
+            p.AddArc(x + w - d, y, d, d, 270, 90);
+            p.AddArc(x + w - d, y + h - d, d, d, 0, 90);
+            p.AddArc(x, y + h - d, d, d, 90, 90);
+            p.CloseFigure();
+            return p;
+        }
+
+        public static void DrawIcon(System.Drawing.Graphics g, AkIcon icon, float cx, float cy, float sz, System.Drawing.Color color)
+        {
+            if (icon == AkIcon.None) return;
+            System.Drawing.Drawing2D.SmoothingMode oldSm = g.SmoothingMode;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            float r = sz * 0.5f;
+            using (System.Drawing.Pen pen = new System.Drawing.Pen(color, 1.5f))
+            using (System.Drawing.SolidBrush br = new System.Drawing.SolidBrush(color))
+            {
+                pen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+                pen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+                pen.LineJoin = System.Drawing.Drawing2D.LineJoin.Round;
+                switch (icon)
+                {
+                    case AkIcon.Refresh:
+                        g.DrawArc(pen, cx - r * 0.82f, cy - r * 0.82f, r * 1.64f, r * 1.64f, -55, 295);
+                        g.DrawLine(pen, cx + r * 0.28f, cy - r * 0.85f, cx + r * 0.62f, cy - r * 0.52f);
+                        g.DrawLine(pen, cx + r * 0.62f, cy - r * 0.52f, cx + r * 0.20f, cy - r * 0.42f);
+                        break;
+                    case AkIcon.Sun:
+                        g.DrawEllipse(pen, cx - r * 0.42f, cy - r * 0.42f, r * 0.84f, r * 0.84f);
+                        for (int i = 0; i < 8; i++)
+                        {
+                            double a = i * System.Math.PI / 4.0;
+                            float x1 = cx + (float)(System.Math.Cos(a) * r * 0.68f);
+                            float y1 = cy + (float)(System.Math.Sin(a) * r * 0.68f);
+                            float x2 = cx + (float)(System.Math.Cos(a) * r * 0.94f);
+                            float y2 = cy + (float)(System.Math.Sin(a) * r * 0.94f);
+                            g.DrawLine(pen, x1, y1, x2, y2);
+                        }
+                        break;
+                    case AkIcon.Moon:
+                        g.DrawArc(pen, cx - r * 0.78f, cy - r * 0.78f, r * 1.56f, r * 1.56f, 40, 235);
+                        g.DrawArc(pen, cx - r * 0.30f, cy - r * 0.92f, r * 1.32f, r * 1.32f, 115, 130);
+                        break;
+                    case AkIcon.Search:
+                        g.DrawEllipse(pen, cx - r * 0.82f, cy - r * 0.82f, r * 1.24f, r * 1.24f);
+                        g.DrawLine(pen, cx + r * 0.25f, cy + r * 0.25f, cx + r * 0.82f, cy + r * 0.82f);
+                        break;
+                    case AkIcon.Pin:
+                        g.DrawLine(pen, cx - r * 0.48f, cy - r * 0.72f, cx + r * 0.48f, cy - r * 0.72f);
+                        g.DrawLine(pen, cx - r * 0.34f, cy - r * 0.72f, cx - r * 0.56f, cy + r * 0.14f);
+                        g.DrawLine(pen, cx + r * 0.34f, cy - r * 0.72f, cx + r * 0.56f, cy + r * 0.14f);
+                        g.DrawLine(pen, cx - r * 0.66f, cy + r * 0.14f, cx + r * 0.66f, cy + r * 0.14f);
+                        g.DrawLine(pen, cx, cy + r * 0.14f, cx, cy + r * 0.86f);
+                        break;
+                    case AkIcon.Info:
+                        g.DrawEllipse(pen, cx - r * 0.85f, cy - r * 0.85f, r * 1.70f, r * 1.70f);
+                        g.DrawLine(pen, cx, cy - r * 0.08f, cx, cy + r * 0.48f);
+                        g.FillEllipse(br, cx - 1.1f, cy - r * 0.52f, 2.2f, 2.2f);
+                        break;
+                    case AkIcon.Play:
+                        g.FillPolygon(br, new System.Drawing.PointF[] {
+                            new System.Drawing.PointF(cx - r * 0.45f, cy - r * 0.68f),
+                            new System.Drawing.PointF(cx + r * 0.68f, cy),
+                            new System.Drawing.PointF(cx - r * 0.45f, cy + r * 0.68f)
+                        });
+                        break;
+                    case AkIcon.Pause:
+                        g.DrawLine(pen, cx - r * 0.36f, cy - r * 0.62f, cx - r * 0.36f, cy + r * 0.62f);
+                        g.DrawLine(pen, cx + r * 0.36f, cy - r * 0.62f, cx + r * 0.36f, cy + r * 0.62f);
+                        break;
+                    case AkIcon.Stop:
+                        g.FillRectangle(br, cx - r * 0.56f, cy - r * 0.56f, r * 1.12f, r * 1.12f);
+                        break;
+                    case AkIcon.Plus:
+                        g.DrawLine(pen, cx - r * 0.68f, cy, cx + r * 0.68f, cy);
+                        g.DrawLine(pen, cx, cy - r * 0.68f, cx, cy + r * 0.68f);
+                        break;
+                    case AkIcon.Minus:
+                        g.DrawLine(pen, cx - r * 0.68f, cy, cx + r * 0.68f, cy);
+                        break;
+                    case AkIcon.Close:
+                        g.DrawLine(pen, cx - r * 0.58f, cy - r * 0.58f, cx + r * 0.58f, cy + r * 0.58f);
+                        g.DrawLine(pen, cx + r * 0.58f, cy - r * 0.58f, cx - r * 0.58f, cy + r * 0.58f);
+                        break;
+                    case AkIcon.Up:
+                        g.DrawLine(pen, cx, cy + r * 0.68f, cx, cy - r * 0.64f);
+                        g.DrawLine(pen, cx - r * 0.52f, cy - r * 0.14f, cx, cy - r * 0.66f);
+                        g.DrawLine(pen, cx + r * 0.52f, cy - r * 0.14f, cx, cy - r * 0.66f);
+                        break;
+                    case AkIcon.Down:
+                        g.DrawLine(pen, cx, cy - r * 0.68f, cx, cy + r * 0.64f);
+                        g.DrawLine(pen, cx - r * 0.52f, cy + r * 0.14f, cx, cy + r * 0.66f);
+                        g.DrawLine(pen, cx + r * 0.52f, cy + r * 0.14f, cx, cy + r * 0.66f);
+                        break;
+                    case AkIcon.Folder:
+                        g.DrawPolygon(pen, new System.Drawing.PointF[] {
+                            new System.Drawing.PointF(cx - r * 0.85f, cy - r * 0.56f),
+                            new System.Drawing.PointF(cx - r * 0.22f, cy - r * 0.56f),
+                            new System.Drawing.PointF(cx - r * 0.04f, cy - r * 0.34f),
+                            new System.Drawing.PointF(cx + r * 0.85f, cy - r * 0.34f),
+                            new System.Drawing.PointF(cx + r * 0.85f, cy + r * 0.64f),
+                            new System.Drawing.PointF(cx - r * 0.85f, cy + r * 0.64f)
+                        });
+                        break;
+                    case AkIcon.Copy:
+                        g.DrawRectangle(pen, cx - r * 0.26f, cy - r * 0.26f, r * 1.02f, r * 1.02f);
+                        g.DrawLine(pen, cx - r * 0.68f, cy + r * 0.30f, cx - r * 0.68f, cy - r * 0.68f);
+                        g.DrawLine(pen, cx - r * 0.68f, cy - r * 0.68f, cx + r * 0.30f, cy - r * 0.68f);
+                        break;
+                    case AkIcon.Trash:
+                        g.DrawLine(pen, cx - r * 0.76f, cy - r * 0.44f, cx + r * 0.76f, cy - r * 0.44f);
+                        g.DrawLine(pen, cx - r * 0.28f, cy - r * 0.74f, cx + r * 0.28f, cy - r * 0.74f);
+                        g.DrawRectangle(pen, cx - r * 0.54f, cy - r * 0.42f, r * 1.08f, r * 1.16f);
+                        break;
+                    case AkIcon.Check:
+                        g.DrawLine(pen, cx - r * 0.68f, cy + r * 0.04f, cx - r * 0.14f, cy + r * 0.58f);
+                        g.DrawLine(pen, cx - r * 0.14f, cy + r * 0.58f, cx + r * 0.74f, cy - r * 0.52f);
+                        break;
+                    case AkIcon.Swap:
+                        g.DrawLine(pen, cx - r * 0.70f, cy - r * 0.32f, cx + r * 0.70f, cy - r * 0.32f);
+                        g.DrawLine(pen, cx + r * 0.32f, cy - r * 0.68f, cx + r * 0.72f, cy - r * 0.32f);
+                        g.DrawLine(pen, cx + r * 0.70f, cy + r * 0.34f, cx - r * 0.70f, cy + r * 0.34f);
+                        g.DrawLine(pen, cx - r * 0.32f, cy + r * 0.70f, cx - r * 0.72f, cy + r * 0.34f);
+                        break;
+                    case AkIcon.Download:
+                        g.DrawLine(pen, cx, cy - r * 0.72f, cx, cy + r * 0.28f);
+                        g.DrawLine(pen, cx - r * 0.44f, cy - r * 0.12f, cx, cy + r * 0.32f);
+                        g.DrawLine(pen, cx + r * 0.44f, cy - r * 0.12f, cx, cy + r * 0.32f);
+                        g.DrawLine(pen, cx - r * 0.74f, cy + r * 0.72f, cx + r * 0.74f, cy + r * 0.72f);
+                        break;
+                    case AkIcon.Link:
+                    case AkIcon.External:
+                        g.DrawLine(pen, cx - r * 0.58f, cy + r * 0.58f, cx + r * 0.62f, cy - r * 0.62f);
+                        g.DrawLine(pen, cx - r * 0.06f, cy - r * 0.64f, cx + r * 0.64f, cy - r * 0.64f);
+                        g.DrawLine(pen, cx + r * 0.64f, cy - r * 0.64f, cx + r * 0.64f, cy + r * 0.06f);
+                        break;
+                    case AkIcon.Split:
+                        g.DrawRectangle(pen, cx - r * 0.82f, cy - r * 0.64f, r * 1.64f, r * 1.28f);
+                        g.DrawLine(pen, cx, cy - r * 0.64f, cx, cy + r * 0.64f);
+                        break;
+                    case AkIcon.Pipette:
+                        g.DrawLine(pen, cx - r * 0.66f, cy + r * 0.66f, cx + r * 0.40f, cy - r * 0.40f);
+                        g.DrawLine(pen, cx + r * 0.12f, cy - r * 0.68f, cx + r * 0.68f, cy - r * 0.12f);
+                        break;
+                    case AkIcon.Bolt:
+                        g.DrawPolygon(pen, new System.Drawing.PointF[] {
+                            new System.Drawing.PointF(cx + r * 0.14f, cy - r * 0.82f),
+                            new System.Drawing.PointF(cx - r * 0.62f, cy + r * 0.08f),
+                            new System.Drawing.PointF(cx - r * 0.04f, cy + r * 0.08f),
+                            new System.Drawing.PointF(cx - r * 0.18f, cy + r * 0.82f),
+                            new System.Drawing.PointF(cx + r * 0.62f, cy - r * 0.10f),
+                            new System.Drawing.PointF(cx + r * 0.04f, cy - r * 0.10f)
+                        });
+                        break;
+                    case AkIcon.List:
+                        g.DrawLine(pen, cx - r * 0.72f, cy - r * 0.46f, cx + r * 0.72f, cy - r * 0.46f);
+                        g.DrawLine(pen, cx - r * 0.72f, cy, cx + r * 0.72f, cy);
+                        g.DrawLine(pen, cx - r * 0.72f, cy + r * 0.46f, cx + r * 0.72f, cy + r * 0.46f);
+                        break;
+                    case AkIcon.Filter:
+                        g.DrawPolygon(pen, new System.Drawing.PointF[] {
+                            new System.Drawing.PointF(cx - r * 0.78f, cy - r * 0.60f),
+                            new System.Drawing.PointF(cx + r * 0.78f, cy - r * 0.60f),
+                            new System.Drawing.PointF(cx + r * 0.16f, cy + r * 0.08f),
+                            new System.Drawing.PointF(cx + r * 0.16f, cy + r * 0.68f),
+                            new System.Drawing.PointF(cx - r * 0.16f, cy + r * 0.52f),
+                            new System.Drawing.PointF(cx - r * 0.16f, cy + r * 0.08f)
+                        });
+                        break;
+                    case AkIcon.Shield:
+                        g.DrawPolygon(pen, new System.Drawing.PointF[] {
+                            new System.Drawing.PointF(cx, cy - r * 0.82f),
+                            new System.Drawing.PointF(cx + r * 0.72f, cy - r * 0.44f),
+                            new System.Drawing.PointF(cx + r * 0.58f, cy + r * 0.34f),
+                            new System.Drawing.PointF(cx, cy + r * 0.82f),
+                            new System.Drawing.PointF(cx - r * 0.58f, cy + r * 0.34f),
+                            new System.Drawing.PointF(cx - r * 0.72f, cy - r * 0.44f)
+                        });
+                        break;
+                    case AkIcon.Lock:
+                        g.DrawRectangle(pen, cx - r * 0.58f, cy - r * 0.08f, r * 1.16f, r * 0.84f);
+                        g.DrawArc(pen, cx - r * 0.38f, cy - r * 0.76f, r * 0.76f, r * 0.84f, 180, 180);
+                        break;
+                    case AkIcon.Unlock:
+                        g.DrawRectangle(pen, cx - r * 0.58f, cy - r * 0.08f, r * 1.16f, r * 0.84f);
+                        g.DrawArc(pen, cx - r * 0.38f, cy - r * 0.76f, r * 0.76f, r * 0.84f, 180, 130);
+                        break;
+                    case AkIcon.Save:
+                        g.DrawRectangle(pen, cx - r * 0.72f, cy - r * 0.72f, r * 1.44f, r * 1.44f);
+                        g.DrawRectangle(pen, cx - r * 0.42f, cy - r * 0.72f, r * 0.72f, r * 0.48f);
+                        g.DrawRectangle(pen, cx - r * 0.44f, cy + r * 0.14f, r * 0.88f, r * 0.58f);
+                        break;
+                    case AkIcon.Edit:
+                        g.DrawLine(pen, cx - r * 0.62f, cy + r * 0.62f, cx + r * 0.56f, cy - r * 0.56f);
+                        g.DrawLine(pen, cx + r * 0.24f, cy - r * 0.74f, cx + r * 0.74f, cy - r * 0.24f);
+                        g.DrawLine(pen, cx - r * 0.72f, cy + r * 0.72f, cx - r * 0.34f, cy + r * 0.62f);
+                        break;
+                    case AkIcon.Undo:
+                        g.DrawArc(pen, cx - r * 0.52f, cy - r * 0.34f, r * 1.24f, r * 1.04f, -135, 225);
+                        g.DrawLine(pen, cx - r * 0.72f, cy - r * 0.22f, cx - r * 0.28f, cy - r * 0.62f);
+                        g.DrawLine(pen, cx - r * 0.72f, cy - r * 0.22f, cx - r * 0.24f, cy + r * 0.10f);
+                        break;
+                    case AkIcon.ChevLeft:
+                        g.DrawLine(pen, cx + r * 0.28f, cy - r * 0.58f, cx - r * 0.34f, cy);
+                        g.DrawLine(pen, cx - r * 0.34f, cy, cx + r * 0.28f, cy + r * 0.58f);
+                        break;
+                    case AkIcon.ChevRight:
+                        g.DrawLine(pen, cx - r * 0.28f, cy - r * 0.58f, cx + r * 0.34f, cy);
+                        g.DrawLine(pen, cx + r * 0.34f, cy, cx - r * 0.28f, cy + r * 0.58f);
+                        break;
+                    case AkIcon.Star:
+                        System.Drawing.PointF[] sp = new System.Drawing.PointF[10];
+                        for (int k = 0; k < 10; k++)
+                        {
+                            double ang = -System.Math.PI / 2.0 + k * System.Math.PI / 5.0;
+                            float rad = (k % 2 == 0) ? r * 0.85f : r * 0.38f;
+                            sp[k] = new System.Drawing.PointF(cx + (float)(System.Math.Cos(ang) * rad), cy + (float)(System.Math.Sin(ang) * rad));
+                        }
+                        g.DrawPolygon(pen, sp);
+                        break;
+                }
+            }
+            g.SmoothingMode = oldSm;
+        }
+    }
+
+    internal sealed class AkButton : System.Windows.Forms.Button
+    {
+        public AkKind Kind = AkKind.Secondary;
+        public AkIcon Icon = AkIcon.None;
+        public bool Active = false;
+        public bool Dark = true;
+        public int Radius = 6;
+        private bool _hov = false;
+        private bool _down = false;
+
+        public AkButton()
+        {
+            SetStyle(System.Windows.Forms.ControlStyles.AllPaintingInWmPaint |
+                     System.Windows.Forms.ControlStyles.OptimizedDoubleBuffer |
+                     System.Windows.Forms.ControlStyles.UserPaint |
+                     System.Windows.Forms.ControlStyles.ResizeRedraw, true);
+            FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            FlatAppearance.BorderSize = 0;
+            Cursor = System.Windows.Forms.Cursors.Hand;
+            TabStop = false;
+            UseMnemonic = false;
+        }
+
+        protected override void OnMouseEnter(System.EventArgs e) { _hov = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(System.EventArgs e) { _hov = false; _down = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnMouseDown(System.Windows.Forms.MouseEventArgs e) { if (e.Button == System.Windows.Forms.MouseButtons.Left) { _down = true; Invalidate(); } base.OnMouseDown(e); }
+        protected override void OnMouseUp(System.Windows.Forms.MouseEventArgs e) { _down = false; Invalidate(); base.OnMouseUp(e); }
+
+        protected override void OnPaint(System.Windows.Forms.PaintEventArgs e)
+        {
+            System.Drawing.Graphics g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+            System.Drawing.Color parentBg = Parent != null ? Parent.BackColor : (Dark ? System.Drawing.Color.FromArgb(29, 31, 32) : System.Drawing.Color.FromArgb(248, 249, 250));
+            g.Clear(parentBg);
+
+            System.Drawing.Color accent = Dark ? System.Drawing.Color.FromArgb(252, 150, 31) : System.Drawing.Color.FromArgb(224, 118, 12);
+            System.Drawing.Color accentHov = Dark ? System.Drawing.Color.FromArgb(255, 169, 64) : System.Drawing.Color.FromArgb(204, 102, 8);
+            System.Drawing.Color surf = Dark ? System.Drawing.Color.FromArgb(39, 41, 43) : System.Drawing.Color.White;
+            System.Drawing.Color surfHov = Dark ? System.Drawing.Color.FromArgb(50, 53, 56) : System.Drawing.Color.FromArgb(236, 239, 243);
+            System.Drawing.Color border = Dark ? System.Drawing.Color.FromArgb(58, 62, 66) : System.Drawing.Color.FromArgb(210, 216, 224);
+            System.Drawing.Color borderHov = Dark ? System.Drawing.Color.FromArgb(84, 89, 95) : System.Drawing.Color.FromArgb(176, 184, 196);
+            System.Drawing.Color fgMain = Dark ? System.Drawing.Color.FromArgb(242, 244, 247) : System.Drawing.Color.FromArgb(26, 29, 33);
+            System.Drawing.Color fgMuted = Dark ? System.Drawing.Color.FromArgb(154, 160, 168) : System.Drawing.Color.FromArgb(95, 104, 116);
+            System.Drawing.Color fgDis = Dark ? System.Drawing.Color.FromArgb(92, 97, 104) : System.Drawing.Color.FromArgb(170, 178, 188);
+
+            bool en = Enabled;
+            System.Drawing.Color bg = parentBg;
+            System.Drawing.Color bd = System.Drawing.Color.Transparent;
+            System.Drawing.Color fg = en ? fgMain : fgDis;
+            bool drawFill = false;
+
+            if (Kind == AkKind.Primary)
+            {
+                drawFill = true;
+                bg = en ? (_hov ? accentHov : accent) : (Dark ? System.Drawing.Color.FromArgb(56, 48, 38) : System.Drawing.Color.FromArgb(228, 224, 218));
+                fg = en ? (Dark ? System.Drawing.Color.FromArgb(20, 21, 23) : System.Drawing.Color.White) : fgDis;
+            }
+            else if (Kind == AkKind.AccentOutline)
+            {
+                drawFill = true;
+                bg = en ? (_hov ? (Dark ? System.Drawing.Color.FromArgb(52, 42, 30) : System.Drawing.Color.FromArgb(255, 243, 228)) : surf) : (Dark ? System.Drawing.Color.FromArgb(32, 34, 36) : System.Drawing.Color.FromArgb(244, 246, 248));
+                bd = en ? accent : border;
+                fg = en ? accent : fgDis;
+            }
+            else if (Kind == AkKind.Danger)
+            {
+                drawFill = true;
+                System.Drawing.Color red = Dark ? System.Drawing.Color.FromArgb(240, 104, 118) : System.Drawing.Color.FromArgb(196, 40, 56);
+                bg = en ? (_hov ? (Dark ? System.Drawing.Color.FromArgb(62, 30, 36) : System.Drawing.Color.FromArgb(254, 228, 231)) : (Dark ? System.Drawing.Color.FromArgb(46, 28, 32) : System.Drawing.Color.FromArgb(255, 240, 242))) : surf;
+                bd = en ? (Dark ? System.Drawing.Color.FromArgb(116, 48, 58) : System.Drawing.Color.FromArgb(236, 154, 164)) : border;
+                fg = en ? red : fgDis;
+            }
+            else if (Kind == AkKind.Tab)
+            {
+                drawFill = _hov && en;
+                bg = surfHov;
+                fg = en ? (Active ? fgMain : (_hov ? fgMain : fgMuted)) : fgDis;
+            }
+            else if (Kind == AkKind.Ghost)
+            {
+                drawFill = (Active || _hov) && en;
+                bg = Active ? (Dark ? System.Drawing.Color.FromArgb(52, 42, 30) : System.Drawing.Color.FromArgb(255, 243, 228)) : surfHov;
+                bd = Active ? accent : System.Drawing.Color.Transparent;
+                fg = en ? (Active ? accent : (_hov ? fgMain : fgMuted)) : fgDis;
+            }
+            else // Secondary (Ariakit tactile elevated pill)
+            {
+                drawFill = true;
+                bg = en ? (Active ? (Dark ? System.Drawing.Color.FromArgb(52, 42, 30) : System.Drawing.Color.FromArgb(255, 243, 228)) : (_hov ? surfHov : surf)) : (Dark ? System.Drawing.Color.FromArgb(32, 34, 36) : System.Drawing.Color.FromArgb(245, 247, 249));
+                bd = en ? (Active ? accent : (_hov ? borderHov : border)) : (Dark ? System.Drawing.Color.FromArgb(44, 47, 50) : System.Drawing.Color.FromArgb(224, 228, 234));
+                fg = en ? (Active ? accent : fgMain) : fgDis;
+            }
+
+            float ox = 0.5f, oy = (_down && en) ? 1.5f : 0.5f;
+            float rw = Width - 1.5f, rh = Height - 1.5f - ((_down && en) ? 1f : 0f);
+            if (drawFill || bd.A > 0)
+            {
+                using (System.Drawing.Drawing2D.GraphicsPath gp = AkDraw.RoundRect(ox, oy, rw, rh, Radius))
+                {
+                    if (drawFill) using (System.Drawing.SolidBrush br = new System.Drawing.SolidBrush(bg)) g.FillPath(br, gp);
+                    if (bd.A > 0) using (System.Drawing.Pen p = new System.Drawing.Pen(bd, 1f)) g.DrawPath(p, gp);
+                }
+            }
+            if (Kind == AkKind.Tab && Active)
+            {
+                using (System.Drawing.SolidBrush ab = new System.Drawing.SolidBrush(accent))
+                    g.FillRectangle(ab, 6, Height - 3, System.Math.Max(8, Width - 12), 2.5f);
+            }
+
+            string txt = Text ?? "";
+            float yShift = (_down && en) ? 1f : 0f;
+            if (Icon != AkIcon.None && txt.Length == 0)
+            {
+                AkDraw.DrawIcon(g, Icon, Width * 0.5f, Height * 0.5f + yShift, 13.5f, fg);
+            }
+            else if (Icon != AkIcon.None)
+            {
+                System.Drawing.Size ts = System.Windows.Forms.TextRenderer.MeasureText(txt, Font, new System.Drawing.Size(Width, Height), System.Windows.Forms.TextFormatFlags.NoPrefix | System.Windows.Forms.TextFormatFlags.NoPadding);
+                float iconW = 13f, gap = 6f;
+                float totalW = iconW + gap + ts.Width;
+                float startX = System.Math.Max(8f, (Width - totalW) * 0.5f);
+                AkDraw.DrawIcon(g, Icon, startX + iconW * 0.5f, Height * 0.5f + yShift, 12.5f, fg);
+                System.Drawing.Rectangle tr = new System.Drawing.Rectangle((int)(startX + iconW + gap), (int)yShift, System.Math.Max(10, Width - (int)(startX + iconW + gap) - 4), Height);
+                System.Windows.Forms.TextRenderer.DrawText(g, txt, Font, tr, fg, System.Windows.Forms.TextFormatFlags.Left | System.Windows.Forms.TextFormatFlags.VerticalCenter | System.Windows.Forms.TextFormatFlags.NoPrefix | System.Windows.Forms.TextFormatFlags.EndEllipsis);
+            }
+            else
+            {
+                System.Drawing.Rectangle tr = new System.Drawing.Rectangle(4, (int)yShift, System.Math.Max(8, Width - 8), Height);
+                System.Windows.Forms.TextRenderer.DrawText(g, txt, Font, tr, fg, System.Windows.Forms.TextFormatFlags.HorizontalCenter | System.Windows.Forms.TextFormatFlags.VerticalCenter | System.Windows.Forms.TextFormatFlags.NoPrefix | System.Windows.Forms.TextFormatFlags.EndEllipsis);
+            }
+        }
+    }
+
 }
