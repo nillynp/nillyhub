@@ -31,8 +31,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("NillyHub")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Nilly graphics (Sotiris Christos) — https://nillygraphics.com/")]
 [assembly: AssemblyTrademark("Nilly graphics / Nillygraphics — Sotiris Christos")]
-[assembly: AssemblyVersion("1.6.18.0")]
-[assembly: AssemblyFileVersion("1.6.18.0")]
+[assembly: AssemblyVersion("1.6.19.0")]
+[assembly: AssemblyFileVersion("1.6.19.0")]
 
 namespace NillyHub
 {
@@ -1807,7 +1807,7 @@ namespace NillyHub
                 g.DrawLine(dp, 18, Height - 46, Width - 18, Height - 46);
 
             DrawMiniIconBtn(g, 0, App.IsInstalled ? "play" : "download",
-                App.IsInstalled || App.FoundOnGitHub,
+                !App.Busy && (App.IsInstalled || App.FoundOnGitHub),
                 App.IsInstalled ? Color.FromArgb(252, 150, 31) : Color.FromArgb(102, 217, 239));
 
             DrawMiniIconBtn(g, 1, "sync",
@@ -1815,7 +1815,7 @@ namespace NillyHub
                 App.HasUpdate ? Color.FromArgb(252, 150, 31) : fgMuted);
 
             DrawMiniIconBtn(g, 2, "folder",
-                App.IsInstalled,
+                App.IsInstalled && !App.Busy,
                 fgMuted);
 
             DrawMiniIconBtn(g, 3, "link",
@@ -1952,6 +1952,7 @@ namespace NillyHub
                 return;
             }
             if (e.Button != MouseButtons.Left) return;
+            if (App.Busy) return;
             int bi = HitTestBtn(e.Location);
             if (bi == 1) { if (App.FoundOnGitHub && UpdateClicked != null) UpdateClicked(App); }
             else if (bi == 2) { if (App.IsInstalled && FolderClicked != null) FolderClicked(App); }
@@ -2827,11 +2828,26 @@ namespace NillyHub
 
         private void OnLaunchApp(SuiteApp app)
         {
-            if (!app.IsInstalled) return;
+            if (app == null) return;
+            if (app.Busy)
+            {
+                _lblStatus.Text = "Ενημερώνεται το " + app.DisplayName + " — περίμενε να ολοκληρωθεί...";
+                return;
+            }
+            if (!app.IsInstalled || string.IsNullOrEmpty(app.LocalLaunchPath) || !File.Exists(app.LocalLaunchPath))
+            {
+                SuiteCatalog.RefreshLocalState(app, _suiteRoot);
+                RefreshSingleTile(app);
+            }
+            if (!app.IsInstalled || string.IsNullOrEmpty(app.LocalLaunchPath) || !File.Exists(app.LocalLaunchPath))
+            {
+                _lblStatus.Text = "Δεν βρέθηκε το " + app.DisplayName + " — πάτα ↓ για εγκατάσταση.";
+                return;
+            }
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo(app.LocalLaunchPath);
-                psi.WorkingDirectory = app.LocalDir;
+                psi.WorkingDirectory = Path.GetDirectoryName(app.LocalLaunchPath);
                 psi.UseShellExecute = true;
                 Process.Start(psi);
                 _lblStatus.Text = "Άνοιξε το " + app.DisplayName + ".";
@@ -3087,8 +3103,8 @@ namespace NillyHub
                 {
                     BeginInvoke((Action)delegate
                     {
-                        app.Busy = false;
                         SuiteCatalog.RefreshLocalState(app, _suiteRoot);
+                        app.Busy = false;
                         ApplyFilters();
                         if (err != null)
                         {

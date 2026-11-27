@@ -80,7 +80,7 @@
       "icon": "NillyCodePro.ico",
       "repo": "nillycode-pro",
       "prefix": "NillyCode-Pro",
-      "latestVersion": "v1.1.3",
+      "latestVersion": "v1.1.4",
       "site": "https://nillygraphics.com/product/nillycode-pro/el/",
       "accent": "#FC961F",
       "replaces": "VS Code (~400 MB) / Sublime Text (58 MB)",
